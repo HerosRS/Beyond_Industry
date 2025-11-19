@@ -1,20 +1,12 @@
-﻿using Raylib_cs;
+﻿
+using BeyondIndustry.Core;
 
-// Fenster erstellen
-Raylib.InitWindow(800, 600, "Beyond Industry");
-Raylib.SetTargetFPS(60);
+// Erstelle und starte das Spiel
+var game = new Game(
+    gridWidth: 20,
+    gridHeight: 15,
+    cellSize: 32
+);
 
-// Game Loop - läuft 60x pro Sekunde
-while (!Raylib.WindowShouldClose())  // Läuft bis X gedrückt wird
-{
-    // ===== UPDATE (Logik) =====
-    
-    // ===== DRAW (Zeichnen) =====
-    Raylib.BeginDrawing();
-    Raylib.ClearBackground(Color.DarkGreen);  // Grüner Hintergrund
-    Raylib.DrawText("Hello Factory!", 100, 100, 40, Color.White);
-    Raylib.EndDrawing();
-}
-
-// Aufräumen
-Raylib.CloseWindow();
+game.Initialize();
+game.Run();

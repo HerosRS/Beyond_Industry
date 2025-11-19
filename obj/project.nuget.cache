@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "mTOB007TKE0=",
+  "dgSpecHash": "CbIHPGZM/9M=",
   "success": true,
-  "projectFilePath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/Beyond_Industry_1.csproj",
+  "projectFilePath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
   "expectedPackageFiles": [
     "/Users/lucatheis/.nuget/packages/raylib-cs/7.0.2/raylib-cs.7.0.2.nupkg.sha512"
   ],

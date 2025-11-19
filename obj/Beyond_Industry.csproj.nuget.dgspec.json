@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/Beyond_Industry_1.csproj": {}
+    "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj": {}
   },
   "projects": {
-    "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/Beyond_Industry_1.csproj": {
+    "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/Beyond_Industry_1.csproj",
-        "projectName": "Beyond_Industry_1",
-        "projectPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/Beyond_Industry_1.csproj",
+        "projectUniqueName": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
+        "projectName": "Beyond_Industry",
+        "projectPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
         "packagesPath": "/Users/lucatheis/.nuget/packages/",
-        "outputPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry_1/obj/",
+        "outputPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/lucatheis/.nuget/NuGet/NuGet.Config"

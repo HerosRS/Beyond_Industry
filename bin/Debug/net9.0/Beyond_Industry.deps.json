@@ -6,12 +6,12 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v9.0": {
-      "Beyond_Industry_1/1.0.0": {
+      "Beyond_Industry/1.0.0": {
         "dependencies": {
           "Raylib-cs": "7.0.2"
         },
         "runtime": {
-          "Beyond_Industry_1.dll": {}
+          "Beyond_Industry.dll": {}
         }
       },
       "Raylib-cs/7.0.2": {
@@ -52,7 +52,7 @@
     }
   },
   "libraries": {
-    "Beyond_Industry_1/1.0.0": {
+    "Beyond_Industry/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
