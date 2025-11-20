@@ -17,8 +17,8 @@ namespace BeyondIndustry.Core
         }
         
         // Vordefinierte Items (wie ein Katalog)
-        public static readonly Item Ore = new Item("Ore", new Color(139, 69, 19, 255));      // Braun
+        public static readonly Item IronOre = new Item("IronOre", new Color(139, 69, 19, 255));      // Braun
         public static readonly Item IronPlate = new Item("Iron", new Color(169, 169, 169, 255)); // Grau
-        public static readonly Item CopperOre = new Item("Copper", new Color(184, 115, 51, 255)); // Kupfer
+        public static readonly Item CopperOre = new Item("CopperOre", new Color(184, 115, 51, 255)); // Kupfer
     }
 }
