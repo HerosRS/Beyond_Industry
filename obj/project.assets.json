@@ -69,19 +69,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\ltheis\\.nuget\\packages\\": {}
+    "/Users/lucatheis/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\ltheis\\Documents\\GitHub\\Beyond_Industry\\Beyond_Industry.csproj",
+      "projectUniqueName": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
       "projectName": "Beyond_Industry",
-      "projectPath": "C:\\Users\\ltheis\\Documents\\GitHub\\Beyond_Industry\\Beyond_Industry.csproj",
-      "packagesPath": "C:\\Users\\ltheis\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\ltheis\\Documents\\GitHub\\Beyond_Industry\\obj\\",
+      "projectPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
+      "packagesPath": "/Users/lucatheis/.nuget/packages/",
+      "outputPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\ltheis\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        "/Users/lucatheis/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
@@ -132,7 +132,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
