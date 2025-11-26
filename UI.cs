@@ -8,9 +8,9 @@ namespace BeyondIndustry.DebugView
 {
     public class UI
     {
+        // Diese Methode ist für 2D UI NACH EndMode3D()
         public static void DebugDataUI()
         {
-            //Funktionen für das, was über das Debug Menü angezeigt werden soll.
             int yPos = 10;
             
             if (DebugConsole.ShowFPS)
@@ -18,31 +18,31 @@ namespace BeyondIndustry.DebugView
                 Raylib.DrawText($"FPS: {Raylib.GetFPS()}", 10, yPos, 20, GlobalColor.DEBUG_GREEN_COLOR);
                 yPos += 30;
             }
-            
-            if (DebugConsole.ShowMousePos)
+
+            if (DebugConsole.ShowCameraInfo)
             {
-                Vector2 mouseGridPos = Grid.getMousePositionInGrid();
-                Raylib.DrawText($"Grid: ({(int)mouseGridPos.X}, {(int)mouseGridPos.Y})", 10, yPos, 20, GlobalColor.DEBUG_GREEN_COLOR);
+                Raylib.DrawText($"Camera Target: ({GlobalData.camera.Target.X:F1}, {GlobalData.camera.Target.Z:F1})", 
+                               10, yPos, 20, GlobalColor.DEBUG_GREEN_COLOR);
+                yPos += 30;
+                
+                Raylib.DrawText($"Camera Height: {GlobalData.camera.Position.Y:F1}", 
+                               10, yPos, 20, GlobalColor.DEBUG_GREEN_COLOR);
                 yPos += 30;
             }
+            
+            // Info-Texte unten
+            Raylib.DrawText("[F1] Debug Console", 10, GlobalData.SCREEN_HEIGHT - 25, 14, Color.Gray);
+            Raylib.DrawText($"[G] Grid: {(DebugConsole.ShowGrid ? "ON" : "OFF")}", 10, GlobalData.SCREEN_HEIGHT - 45, 14, Color.Gray);
+        }
 
-            if (!DebugConsole.ShowGrid)
+        // NEUE Methode für 3D-Elemente (muss IN BeginMode3D() aufgerufen werden!)
+        public static void Draw3DElements()
+        {
+            // Grid zeichnen (wenn aktiviert)
+            if (DebugConsole.ShowGrid)
             {
-                for (int x = 0; x < GlobalData.SCREEN_WIDTH; x += GlobalData.CELL_SIZE)
-                {
-                    Raylib.DrawLine(x, 0, x, GlobalData.SCREEN_HEIGHT, GlobalColor.FORGROUND_COLOR);
-                }
-
-                for (int y = 0; y < GlobalData.SCREEN_HEIGHT; y += GlobalData.CELL_SIZE)
-                {
-                    Raylib.DrawLine(0, y, GlobalData.SCREEN_WIDTH, y, GlobalColor.FORGROUND_COLOR);
-                }
-               return; 
-            } 
-            
-            
-            
-            Raylib.DrawText("[F1] Debug Console", 10, GlobalData.SCREEN_HEIGHT - 25, 14, Color.DarkGray);
+                Raylib.DrawGrid(10, 1.0f);
+            }
         }
     }
 }

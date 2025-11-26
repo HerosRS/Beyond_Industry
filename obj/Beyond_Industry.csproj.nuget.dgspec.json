@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj": {}
+    "D:\\Beyond_Industry\\Beyond_Industry.csproj": {}
   },
   "projects": {
-    "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj": {
+    "D:\\Beyond_Industry\\Beyond_Industry.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
+        "projectUniqueName": "D:\\Beyond_Industry\\Beyond_Industry.csproj",
         "projectName": "Beyond_Industry",
-        "projectPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/Beyond_Industry.csproj",
-        "packagesPath": "/Users/lucatheis/.nuget/packages/",
-        "outputPath": "/Users/lucatheis/Documents/GitHub/Beyond_Industry/obj/",
+        "projectPath": "D:\\Beyond_Industry\\Beyond_Industry.csproj",
+        "packagesPath": "C:\\Users\\lucat\\.nuget\\packages\\",
+        "outputPath": "D:\\Beyond_Industry\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/lucatheis/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\lucat\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -38,7 +38,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "9.0.200"
       },
       "frameworks": {
         "net9.0": {
@@ -65,7 +65,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.300/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.200/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

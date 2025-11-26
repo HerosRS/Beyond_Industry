@@ -24,7 +24,8 @@ namespace BeyondIndustry.Debug
         public static bool ShowGrid = false;
         public static bool ShowFPS = false;
         public static bool ShowMousePos = false;
-        
+                // In DebugConsole.cs
+        public static bool ShowCameraInfo = false;
         public static void Update()
         {
             // F1 zum Toggle
@@ -100,23 +101,6 @@ namespace BeyondIndustry.Debug
                 case "mousepos":
                     ShowMousePos = !ShowMousePos;
                     log.Add($"MousePos: {(ShowMousePos ? "ON" : "OFF")}");
-                    break;
-                    
-                case "fill":
-                    if (parts.Length > 1 && int.TryParse(parts[1], out int val))
-                    {
-                        Grid.FillAll(val);
-                        log.Add($"Grid mit {val} gefüllt");
-                    }
-                    else
-                    {
-                        log.Add("Verwendung: fill <wert>");
-                    }
-                    break;
-                    
-                case "clearmap":
-                    Grid.ClearAll();
-                    log.Add("Map geleert!");
                     break;
                     
                 default:

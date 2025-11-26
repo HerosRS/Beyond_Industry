@@ -4,6 +4,9 @@ using BeyondIndustry.Data;
 using BeyondIndustry.DebugView;
 using BeyondIndustry.Debug;
 using System.Numerics;
+using System;
+using System.Threading.Tasks.Dataflow;
+using System.Runtime.CompilerServices;
 
 namespace BeyondIndustry
 {
@@ -12,19 +15,49 @@ namespace BeyondIndustry
         static void Main()
         {
             Raylib.InitWindow(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT, "Beyond Industry");
-            Raylib.SetTargetFPS(60);
 
-            Grid.Initialize();
+            // ===== KORRIGIERTE KAMERA (wie im Raylib Beispiel!) =====
+            GlobalData.camera.Position = new Vector3(20.0f, 20.0f, 20.0f);  // Diagonal über der Szene
+            GlobalData.camera.Target = new Vector3(0.0f, 0.0f, 0.0f);       // Schaut auf Ursprung
+            GlobalData.camera.Up = new Vector3(0.0f, 1.0f, 0.0f);           // Y ist OBEN!
+            GlobalData.camera.FovY = 50.0f;
+            GlobalData.camera.Projection = CameraProjection.Perspective;     // Perspective statt Orthographic
             
-            // NEU: Sprites laden
-            SpriteManager.LoadSprite("floor", "Resources/sprites/floor.png");
-            SpriteManager.LoadSprite("machine", "Resources/sprites/machine.png");
-            SpriteManager.LoadSprite("furnace", "Resources/sprites/furnace.png");
-            
-            // NEU: Sprites aktivieren
-            Grid.UseSprites = true;
-            
-            int selectedTool = 1;
+            // ===== BELEUCHTUNG SETUP =====
+            Shader shader = Raylib.LoadShader((string)null, (string)null);
+
+            // Modelle laden
+            Model Wand = Raylib.LoadModel(@"D:\Beyond_Industry\Resources\Wand.glb");
+            Model Boden = Raylib.LoadModel(@"D:\Beyond_Industry\Resources\Boden.glb");
+
+            // Shader auf Modelle anwenden
+            unsafe
+            {
+                if (Wand.MeshCount > 0)
+                    Wand.Materials[0].Shader = shader;
+                if (Boden.MeshCount > 0)
+                    Boden.Materials[0].Shader = shader;
+            }
+
+            // Licht erstellen
+            Light mainLight = Rlights.CreateLight(
+                LightType.Directional,
+                new Vector3(10, 20, 10),
+                Vector3.Zero,
+                Color.White,
+                shader
+            );
+
+            // Umgebungslicht
+            Raylib.SetShaderValue(
+                shader,
+                Raylib.GetShaderLocation(shader, "ambient"),
+                new float[] { 0.4f, 0.4f, 0.4f, 1.0f },
+                ShaderUniformDataType.Vec4
+            );
+
+            // Grid
+            Grid grid = new Grid();
 
             while (!Raylib.WindowShouldClose())
             {
@@ -33,51 +66,57 @@ namespace BeyondIndustry
                 
                 if (!DebugConsole.IsOpen())
                 {
-                    Vector2 mouseGridPos = Grid.getMousePositionInGrid();
-                    int mouseCol = (int)mouseGridPos.X;
-                    int mouseRow = (int)mouseGridPos.Y;
+                    // Kamera mit UpdateCamera (wie im Raylib Beispiel)
+                    Raylib.UpdateCamera(ref GlobalData.camera, CameraMode.Free);
                     
-                    if (Raylib.IsKeyPressed(KeyboardKey.One))
-                        selectedTool = 1;
-                    if (Raylib.IsKeyPressed(KeyboardKey.Two))
-                        selectedTool = 2;
-                    if (Raylib.IsKeyPressed(KeyboardKey.Three))
-                        selectedTool = 3;
-                    
-                    if (Raylib.IsMouseButtonDown(MouseButton.Left))
-                        Grid.SetCell(mouseCol, mouseRow, selectedTool);
-                    
-                    if (Raylib.IsMouseButtonDown(MouseButton.Right))
-                        Grid.SetCell(mouseCol, mouseRow, 0);
+                    // ODER manuelle Steuerung:
+                    /*
+                    float cameraSpeed = 0.5f;
+                    if (Raylib.IsKeyDown(KeyboardKey.W))
+                        GlobalData.camera.Position.Z -= cameraSpeed;
+                    if (Raylib.IsKeyDown(KeyboardKey.S))
+                        GlobalData.camera.Position.Z += cameraSpeed;
+                    */
                 }
                 
                 // ===== DRAW =====
                 Raylib.BeginDrawing();
-                Raylib.ClearBackground(GlobalColor.BACKGROUND_COLOR);
+                Raylib.ClearBackground(Color.RayWhite);  // Hellerer Hintergrund zum Testen
                 
-                Grid.DrawCells();
-               
-                
-                if (!DebugConsole.IsOpen())
-                {
-                    string toolName = selectedTool switch
+                Raylib.BeginMode3D(GlobalData.camera);
+                    UI.Draw3DElements();
+                    // Referenz-Grid am Boden (Y=0)
+                    //Raylib.DrawGrid(10, 1.0f);
+
+                    // Wenn Modelle geladen, zeichne sie
+                    if (Wand.MeshCount > 0)
                     {
-                        1 => "Boden",
-                        2 => "Maschine",
-                        3 => "Ofen",
-                        _ => "Unbekannt"
-                    };
-                    Raylib.DrawText($"Werkzeug: {toolName}", 10, 100, 20, Color.Black);
-                }
+                        Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
+                        
+                        Vector3 BodenPos = new Vector3(1, 0, 0);
+                        Raylib.DrawModel(Boden, BodenPos, 1.0f, Color.White);
+                        
+                      
+                        // Mit Wire-Overlay zum Debuggen
+                        //Raylib.DrawModelWires(Wand, wandPos, 1.0f, Color.Black);
+                    }
+                    
+                  
+                Raylib.EndMode3D();
+
+                // UI
+                Raylib.DrawText("Use Mouse to rotate camera", 10, 10, 20, Color.Black);
                 
                 UI.DebugDataUI();
                 DebugConsole.Draw();
-                
+
                 Raylib.EndDrawing();
             }
 
-            // Aufräumen
-            SpriteManager.UnloadAll();
+            // Cleanup
+            Raylib.UnloadShader(shader);
+            Raylib.UnloadModel(Wand);
+            Raylib.UnloadModel(Boden);
             Raylib.CloseWindow();
         }
     }

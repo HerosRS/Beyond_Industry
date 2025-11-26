@@ -6,137 +6,77 @@ namespace BeyondIndustry.Utils
 {
     public class Grid
     {
-        private static int[,] cells = new int[0, 0];
-        private static int rows;
-        private static int cols;
+        // Grid-Daten (2D Array bleibt - das ist deine Spiel-Logik!)
+        private int[,] grid;
         
-        // NEU: Flag ob Sprites verwendet werden sollen
-        public static bool UseSprites = false;
-        
-        public static void Initialize()
+        public Grid(int width = 100, int height = 100)
         {
-            cols = GlobalData.SCREEN_WIDTH / GlobalData.CELL_SIZE;
-            rows = GlobalData.SCREEN_HEIGHT / GlobalData.CELL_SIZE;
-            cells = new int[rows, cols];
+            grid = new int[width, height];
         }
         
-        public static void SetCell(int col, int row, int value)
-        {
-            if (col >= 0 && col < cols && row >= 0 && row < rows)
-            {
-                cells[row, col] = value;
-            }
-        }
-        
-        public static int GetCell(int col, int row)
-        {
-            if (col >= 0 && col < cols && row >= 0 && row < rows)
-            {
-                return cells[row, col];
-            }
-            return 0;
-        }
-        
-        public static void FillAll(int value)
-        {
-            for (int row = 0; row < rows; row++)
-            {
-                for (int col = 0; col < cols; col++)
-                {
-                    cells[row, col] = value;
-                }
-            }
-        }
-        
-        public static void ClearAll()
-        {
-            for (int row = 0; row < rows; row++)
-            {
-                for (int col = 0; col < cols; col++)
-                {
-                    cells[row, col] = 0;
-                }
-            }
-        }
-        
-        // ERWEITERT: DrawCells mit Sprite-Support
-        public static void DrawCells()
-        {
-            for (int row = 0; row < rows; row++)
-            {
-                for (int col = 0; col < cols; col++)
-                {
-                    int x = col * GlobalData.CELL_SIZE;
-                    int y = row * GlobalData.CELL_SIZE;
-                    int cellValue = cells[row, col];
-                    
-                    if (cellValue == 0) 
-                    {
-                        // Leer - zeichne weißen Hintergrund
-                        Raylib.DrawRectangle(x, y, GlobalData.CELL_SIZE, GlobalData.CELL_SIZE, Color.White);
-                        continue;
-                    }
-                    
-                    // Versuche Sprite zu laden
-                    string spriteName = GetSpriteNameForValue(cellValue);
-                    
-                    if (UseSprites && SpriteManager.HasSprite(spriteName))
-                    {
-                        // Zeichne Sprite
-                        Texture2D sprite = SpriteManager.GetSprite(spriteName);
-                        
-                        // Berechne Skalierung (falls Sprite nicht 32x32 ist)
-                        float scale = (float)GlobalData.CELL_SIZE / sprite.Width;
-                        
-                        Raylib.DrawTextureEx(
-                            sprite,
-                            new Vector2(x, y),
-                            0f,           // Rotation
-                            scale,        // Skalierung
-                            Color.White   // Tint
-                        );
-                    }
-                    else
-                    {
-                        // Fallback: Farb-Rechteck
-                        Color cellColor = GetColorForCell(cellValue);
-                        Raylib.DrawRectangle(x, y, GlobalData.CELL_SIZE, GlobalData.CELL_SIZE, cellColor);
-                    }
-                }
-            }
-        }
-        
-        // NEU: Sprite-Name für Wert
-        private static string GetSpriteNameForValue(int value)
-        {
-            return value switch
-            {
-                1 => "floor",
-                2 => "machine",
-                3 => "furnace",
-                _ => "unknown"
-            };
-        }
-        
-        // Farb-Fallback
-        private static Color GetColorForCell(int value)
-        {
-            return value switch
-            {
-                0 => Color.White,
-                1 => new Color(220, 220, 220, 255),
-                2 => new Color(70, 130, 180, 255),
-                3 => new Color(220, 20, 60, 255),
-                _ => Color.White
-            };
-        }
-        
-        public static Vector2 getMousePositionInGrid()
+        // Neue 3D-Methode: Maus zu 3D-Grid mit Raycast
+        public Vector2 GetMousePositionIn3DGrid()
         {
             Vector2 mousePos = Raylib.GetMousePosition();
-            int gridX = (int)(mousePos.X / GlobalData.CELL_SIZE);
-            int gridY = (int)(mousePos.Y / GlobalData.CELL_SIZE);
-            return new Vector2(gridX, gridY);
+            Ray ray = Raylib.GetScreenToWorldRay(mousePos, GlobalData.camera);
+            
+            // Raycast auf Y=0 Ebene (Boden)
+            if (ray.Direction.Y != 0) // Division durch 0 vermeiden
+            {
+                float t = -ray.Position.Y / ray.Direction.Y;
+                
+                // Nur wenn der Strahl nach unten geht (t > 0)
+                if (t > 0)
+                {
+                    Vector3 hitPoint = ray.Position + ray.Direction * t;
+
+                    // Grid-Koordinaten berechnen
+                    int gridX = (int)(hitPoint.X / GlobalData.CELL_SIZE);
+                    int gridZ = (int)(hitPoint.Z / GlobalData.CELL_SIZE);
+                    
+                    // Bounds checking
+                    if (gridX >= 0 && gridX < grid.GetLength(0) && 
+                        gridZ >= 0 && gridZ < grid.GetLength(1))
+                    {
+                        return new Vector2(gridX, gridZ);
+                    }
+                }
+            }
+            
+            return new Vector2(-1, -1); // Ungültige Position
         }
+
+        // Grid-Zugriff Methoden
+        public int GetCell(int x, int z)
+        {
+            if (x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1))
+                return grid[x, z];
+            return -1;
+        }
+
+        public void SetCell(int x, int z, int value)
+        {
+            if (x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1))
+                grid[x, z] = value;
+        }
+
+        public bool IsValidPosition(int x, int z)
+        {
+            return x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1);
+        }
+
+        // 3D World Position von Grid-Koordinaten berechnen
+        public static Vector3 GridToWorld(int x, int z)
+        {
+            return new Vector3(
+                x * GlobalData.CELL_SIZE + GlobalData.CELL_SIZE / 2,  // Zentriert
+                0, 
+                z * GlobalData.CELL_SIZE + GlobalData.CELL_SIZE / 2   // Zentriert
+            );
+        }
+
+        // Grid Größe
+        public int GetWidth() => grid.GetLength(0);
+        public int GetHeight() => grid.GetLength(1);
     }
 }
