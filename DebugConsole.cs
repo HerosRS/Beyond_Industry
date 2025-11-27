@@ -21,7 +21,7 @@ namespace BeyondIndustry.Debug
         private static Rectangle logRect = new Rectangle(20, 150, 760, 380);
         
         // Toggles
-        public static bool ShowGrid = false;
+        public static bool ShowGrid = true;
         public static bool ShowFPS = false;
         public static bool ShowMousePos = false;
                 // In DebugConsole.cs
