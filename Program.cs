@@ -3,31 +3,63 @@ using BeyondIndustry.Utils;
 using BeyondIndustry.Data;
 using BeyondIndustry.DebugView;
 using BeyondIndustry.Debug;
+using BeyondIndustry.Factory;
 using System.Numerics;
 using System;
-using System.Threading.Tasks.Dataflow;
-using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 
 namespace BeyondIndustry
 {
     class Program
     {
+        // ===== KLASSE FÜR PLATZIERTE OBJEKTE =====
+        public class PlacedObject
+        {
+            public Vector3 Position;
+            public Model Model;
+            public string Type;
+            public Vector3 Size;
+            public FactoryMachine Machine;
+            
+            public PlacedObject(Vector3 pos, Model model, string type, Vector3 size, FactoryMachine? machine = null)
+            {
+                Position = pos;
+                Model = model;
+                Type = type;
+                Size = size;
+                Machine = machine;
+            }
+        }
+        
         static void Main()
         {
             Raylib.InitWindow(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT, "Beyond Industry");
 
-            // ===== KORRIGIERTE KAMERA (wie im Raylib Beispiel!) =====
-            GlobalData.camera.Position = new Vector3(22.0f, 20.0f, 22.0f);  // Diagonal über der Szene
-            GlobalData.camera.Target = new Vector3(0.0f, 0.0f, 0.0f);       // Schaut auf Ursprung
-            GlobalData.camera.Up = new Vector3(0.0f, 1.0f, 0.0f);           // Y ist OBEN!
+            // ===== KAMERA SETUP =====
+            GlobalData.camera.Position = new Vector3(22.0f, 20.0f, 22.0f);
+            GlobalData.camera.Target = new Vector3(0.0f, 0.0f, 0.0f);
+            GlobalData.camera.Up = new Vector3(0.0f, 1.0f, 0.0f);
             GlobalData.camera.FovY = 15.0f;
-            GlobalData.camera.Projection = CameraProjection.Perspective;     // Perspective statt Orthographic
+            GlobalData.camera.Projection = CameraProjection.Perspective;
+            
+            // ===== KALIBRIERBARE KAMERA-EINSTELLUNGEN =====
+            float cameraMoveSpeed = 0.1f;
+            float cameraRotationSpeed = 0.8f;
             
             // ===== BELEUCHTUNG SETUP =====
             Shader shader = Raylib.LoadShader(@"..\..\..\Resources\lighting.vs", @"..\..\..\Resources\lighting.fs");
+            Vector3 lightPosition = new Vector3(0.0f, 10.0f, 0.0f);
+            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightPos"),
+                new float[] { lightPosition.X, lightPosition.Y, lightPosition.Z }, ShaderUniformDataType.Vec3);
+            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightColor"),
+                new float[] { 1.0f, 1.0f, 1.0f, 1.0f }, ShaderUniformDataType.Vec4);
+            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "ambient"),
+                new float[] { 0.5f, 0.5f, 0.5f, 1.0f }, ShaderUniformDataType.Vec4);
 
+            // ===== LADE 3D MODELLE =====
             Model Wand = Raylib.LoadModel(@"..\..\..\Resources\Wand.obj");
             Model Boden = Raylib.LoadModel(@"..\..\..\Resources\Boden.obj");
+            Model MaschineModel = Raylib.LoadModel(@"..\..\..\Resources\Maschiene.obj");
             Model cubeModel = Raylib.LoadModelFromMesh(Raylib.GenMeshCube(1.0f, 1.0f, 1.0f));
 
             // Shader auf Modelle anwenden
@@ -36,54 +68,51 @@ namespace BeyondIndustry
                 Boden.Materials[0].Shader = shader;
                 Wand.Materials[0].Shader = shader;
                 cubeModel.Materials[0].Shader = shader;
+                MaschineModel.Materials[0].Shader = shader;
             }
 
-            // WICHTIG: Licht-Werte MANUELL setzen!
-            Vector3 lightPosition = new Vector3(0.0f, 10.0f, 0.0f);
+            // ===== INITIALISIERE MASCHINEN-REGISTRY =====
+            MachineRegistry.Initialize();
 
-            // Lichtposition setzen
-            Raylib.SetShaderValue(
-                shader,
-                Raylib.GetShaderLocation(shader, "lightPos"),
-                new float[] { lightPosition.X, lightPosition.Y, lightPosition.Z },
-                ShaderUniformDataType.Vec3
-            );
+            // ===== MODELL-ZUORDNUNG =====
+            var modelMap = new Dictionary<string, Model>
+            {
+                { "default", cubeModel },
+                { "MiningDrill", MaschineModel },
+                { "Furnace", cubeModel },
+                { "ConveyorBelt", cubeModel }
+            };
 
-            // Lichtfarbe setzen (Weiß)
-            Raylib.SetShaderValue(
-                shader,
-                Raylib.GetShaderLocation(shader, "lightColor"),
-                new float[] { 1.0f, 1.0f, 1.0f, 1.0f },
-                ShaderUniformDataType.Vec4
-            );
-
-            // Umgebungslicht setzen
-            Raylib.SetShaderValue(
-                shader,
-                Raylib.GetShaderLocation(shader, "ambient"),
-                new float[] { 0.5f, 0.5f, 0.5f, 1.0f },
-                ShaderUniformDataType.Vec4
-            );
-
-            // Grid
+            // ===== LADE ALLE MASCHINEN-DEFINITIONEN =====
+            List<MachineDefinition> machineDefinitions = MachineRegistry.LoadAllDefinitions(modelMap);
+         
+            // ===== GRID SETUP =====
             Grid grid = new Grid();
             
-            // Kamera-Bewegungsgeschwindigkeit
-            float cameraMoveSpeed = 0.003f;
-            float cameraRotationSpeed = 1.0f;
+            // ===== FACTORY MANAGER =====
+            FactoryManager factoryManager = new FactoryManager();
+            factoryManager.TotalPowerGeneration = 200f;
+            
+            // ===== PLATZIERUNGS-SYSTEM =====
+            List<PlacedObject> placedObjects = new List<PlacedObject>();
+            int gridSize = 9;
+            float cellSize = 1.0f;
+            bool showPreview = false;
+            Vector3 previewPosition = Vector3.Zero;
+            int selectedMachineIndex = 0;
             
             while (!Raylib.WindowShouldClose())
             {
                 // ===== UPDATE =====
                 DebugConsole.Update();
+                factoryManager.Update(Raylib.GetFrameTime());
                 
                 if (!DebugConsole.IsOpen())
                 {
-                    // Kamera-Bewegung mit Pfeiltasten (bewegt Position relativ zum Target)
+                    // ===== KAMERA-STEUERUNG =====
                     Vector3 forward = Vector3.Normalize(GlobalData.camera.Target - GlobalData.camera.Position);
                     Vector3 right = Vector3.Normalize(Vector3.Cross(forward, GlobalData.camera.Up));
                     
-                    // Vorwärts/Rückwärts
                     if (Raylib.IsKeyDown(KeyboardKey.W))
                     {
                         GlobalData.camera.Position += forward * cameraMoveSpeed;
@@ -94,8 +123,6 @@ namespace BeyondIndustry
                         GlobalData.camera.Position -= forward * cameraMoveSpeed;
                         GlobalData.camera.Target -= forward * cameraMoveSpeed;
                     }
-                    
-                    // Links/Rechts
                     if (Raylib.IsKeyDown(KeyboardKey.A))
                     {
                         GlobalData.camera.Position -= right * cameraMoveSpeed;
@@ -106,50 +133,37 @@ namespace BeyondIndustry
                         GlobalData.camera.Position += right * cameraMoveSpeed;
                         GlobalData.camera.Target += right * cameraMoveSpeed;
                     }
-                    
-                    // Hoch/Runter
-                    if (Raylib.IsKeyDown(KeyboardKey.Q))
+                    if (Raylib.IsKeyDown(KeyboardKey.Space))
                     {
                         GlobalData.camera.Position.Y += cameraMoveSpeed;
                         GlobalData.camera.Target.Y += cameraMoveSpeed;
                     }
-                    if (Raylib.IsKeyDown(KeyboardKey.E))
+                    if (Raylib.IsKeyDown(KeyboardKey.LeftShift))
                     {
                         GlobalData.camera.Position.Y -= cameraMoveSpeed;
                         GlobalData.camera.Target.Y -= cameraMoveSpeed;
                     }
                     
-                    // Kamera rotieren mit Pfeiltasten
                     if (Raylib.IsKeyDown(KeyboardKey.Left))
                     {
-                        // Rotiere um Y-Achse (links)
                         Vector3 direction = GlobalData.camera.Position - GlobalData.camera.Target;
                         float angle = cameraRotationSpeed * Raylib.GetFrameTime();
-                        
                         float cosAngle = MathF.Cos(angle);
                         float sinAngle = MathF.Sin(angle);
-                        
                         float newX = direction.X * cosAngle - direction.Z * sinAngle;
                         float newZ = direction.X * sinAngle + direction.Z * cosAngle;
-                        
                         GlobalData.camera.Position = GlobalData.camera.Target + new Vector3(newX, direction.Y, newZ);
                     }
                     if (Raylib.IsKeyDown(KeyboardKey.Right))
                     {
-                        // Rotiere um Y-Achse (rechts)
                         Vector3 direction = GlobalData.camera.Position - GlobalData.camera.Target;
                         float angle = -cameraRotationSpeed * Raylib.GetFrameTime();
-                        
                         float cosAngle = MathF.Cos(angle);
                         float sinAngle = MathF.Sin(angle);
-                        
                         float newX = direction.X * cosAngle - direction.Z * sinAngle;
                         float newZ = direction.X * sinAngle + direction.Z * cosAngle;
-                        
                         GlobalData.camera.Position = GlobalData.camera.Target + new Vector3(newX, direction.Y, newZ);
                     }
-                    
-                    // Zoom mit Up/Down
                     if (Raylib.IsKeyDown(KeyboardKey.Up))
                     {
                         Vector3 direction = GlobalData.camera.Target - GlobalData.camera.Position;
@@ -161,54 +175,168 @@ namespace BeyondIndustry
                         GlobalData.camera.Position -= Vector3.Normalize(direction) * cameraMoveSpeed;
                     }
 
-                    // Maus-Klick Detection
-                    if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                    // ===== MASCHINEN-AUSWAHL =====
+                    if (Raylib.IsKeyPressed(KeyboardKey.Tab))
                     {
-                        // Ray von Mausposition in 3D-Welt
-                        Ray ray = Raylib.GetMouseRay(Raylib.GetMousePosition(), GlobalData.camera);
+                        selectedMachineIndex = (selectedMachineIndex + 1) % machineDefinitions.Count;
+                        Console.WriteLine($"Ausgewählt: {machineDefinitions[selectedMachineIndex].Name}");
+                    }
+                    
+                    // Dynamische Zahlentasten basierend auf Anzahl der Definitionen
+                    if (Raylib.IsKeyPressed(KeyboardKey.One) && machineDefinitions.Count > 0)
+                        selectedMachineIndex = 0;
+                    if (Raylib.IsKeyPressed(KeyboardKey.Two) && machineDefinitions.Count > 1)
+                        selectedMachineIndex = 1;
+                    if (Raylib.IsKeyPressed(KeyboardKey.Three) && machineDefinitions.Count > 2)
+                        selectedMachineIndex = 2;
+                    if (Raylib.IsKeyPressed(KeyboardKey.Four) && machineDefinitions.Count > 3)
+                        selectedMachineIndex = 3;
+                    if (Raylib.IsKeyPressed(KeyboardKey.Five) && machineDefinitions.Count > 4)
+                        selectedMachineIndex = 4;
+                    
+                    // ===== MAUS-POSITION AUF GRID =====
+                    Ray mouseRay = Raylib.GetMouseRay(Raylib.GetMousePosition(), GlobalData.camera);
+                    RayCollision groundCollision = Raylib.GetRayCollisionQuad(
+                        mouseRay,
+                        new Vector3(-50, 0, -50),
+                        new Vector3(-50, 0, 50),
+                        new Vector3(50, 0, 50),
+                        new Vector3(50, 0, -50)
+                    );
+                    
+                    if (groundCollision.Hit)
+                    {
+                        showPreview = true;
+                        Vector3 hitPoint = groundCollision.Point;
+                        MachineDefinition currentDef = machineDefinitions[selectedMachineIndex];
                         
-                        // Cube ist bei Vector3.Zero mit Größe 1.0f
-                        BoundingBox cubeBox = new BoundingBox(
-                            new Vector3(-0.5f, -0.5f, -0.5f),  // min
-                            new Vector3(0.5f, 0.5f, 0.5f)      // max
-                        );
+                        int gridX = (int)MathF.Round(hitPoint.X / cellSize);
+                        int gridZ = (int)MathF.Round(hitPoint.Z / cellSize);
+                        int halfGrid = gridSize / 2;
                         
-                        // Prüfe ob Ray den Cube trifft
-                        RayCollision collision = Raylib.GetRayCollisionBox(ray, cubeBox);
-                        
-                        if (collision.Hit)
+                        if (gridX >= -halfGrid && gridX <= halfGrid && 
+                            gridZ >= -halfGrid && gridZ <= halfGrid)
                         {
-                            Console.WriteLine("Cube wurde angeklickt!");
+                            previewPosition = new Vector3(gridX * cellSize, currentDef.YOffset, gridZ * cellSize);
+                        }
+                        else
+                        {
+                            showPreview = false;
+                        }
+                    }
+                    else
+                    {
+                        showPreview = false;
+                    }
+                    
+                    // ===== PLATZIEREN =====
+                    if (Raylib.IsMouseButtonPressed(MouseButton.Left) && showPreview)
+                    {
+                        MachineDefinition currentDef = machineDefinitions[selectedMachineIndex];
+                        
+                        // Kollisionsprüfung
+                        bool positionOccupied = false;
+                        foreach (var obj in placedObjects)
+                        {
+                            float distanceX = MathF.Abs(obj.Position.X - previewPosition.X);
+                            float distanceZ = MathF.Abs(obj.Position.Z - previewPosition.Z);
+                            
+                            if (distanceX < (obj.Size.X + currentDef.Size.X) / 2 * cellSize &&
+                                distanceZ < (obj.Size.Z + currentDef.Size.Z) / 2 * cellSize)
+                            {
+                                positionOccupied = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!positionOccupied)
+                        {
+                            // ===== MASCHINE ERSTELLEN ÜBER DEFINITION =====
+                            FactoryMachine machine = currentDef.CreateMachine(previewPosition);
+                            
+                            if (machine != null)
+                            {
+                                factoryManager.AddMachine(machine);
+                                
+                                // Belt-Verbindungen aktualisieren
+                                if (machine is ConveyorBelt)
+                                {
+                                    BeltConnectionHelper.UpdateAllConnections(factoryManager);
+                                }
+                            }
+                            
+                            PlacedObject newObject = new PlacedObject(
+                                previewPosition,
+                                currentDef.Model,
+                                currentDef.Name,
+                                currentDef.Size,
+                                machine
+                            );
+                            
+                            placedObjects.Add(newObject);
+                            Console.WriteLine($"{currentDef.Name} platziert ({placedObjects.Count} gesamt)");
+                        }
+                    }
+                    
+                    // ===== ENTFERNEN =====
+                    if (Raylib.IsMouseButtonPressed(MouseButton.Right) && showPreview)
+                    {
+                        for (int i = placedObjects.Count - 1; i >= 0; i--)
+                        {
+                            float distanceX = MathF.Abs(placedObjects[i].Position.X - previewPosition.X);
+                            float distanceZ = MathF.Abs(placedObjects[i].Position.Z - previewPosition.Z);
+                            
+                            if (distanceX < placedObjects[i].Size.X * cellSize / 2 &&
+                                distanceZ < placedObjects[i].Size.Z * cellSize / 2)
+                            {
+                                if (placedObjects[i].Machine != null)
+                                {
+                                    factoryManager.RemoveMachine(placedObjects[i].Machine);
+                                    BeltConnectionHelper.UpdateAllConnections(factoryManager);
+                                }
+                                
+                                Console.WriteLine($"{placedObjects[i].Type} entfernt");
+                                placedObjects.RemoveAt(i);
+                                break;
+                            }
                         }
                     }
                 }
                 
                 // ===== DRAW =====
                 Raylib.BeginDrawing();
-                Raylib.ClearBackground(new Color(38, 40, 43, 255));
+                Raylib.ClearBackground(new Color(135, 206, 235, 255));
                 
                 Raylib.BeginMode3D(GlobalData.camera);
                     UI.Draw3DElements();
-                    
-                    // Lichtquelle (fix)
                     Raylib.DrawSphere(lightPosition, 0.3f, Color.Yellow);
                     
-                    // Cube zeichnen
-                    //Raylib.DrawModel(cubeModel, Vector3.Zero, 1.0f, Color.Red);
-
-                    Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
-                    
+                    //Building.DrawBorderWallWithModel(Wand, 9, 1.0f); //<---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------Wand
                     Vector3 bodenPos = new Vector3(0, 0, 0);
-                    Vector3 rotationAxis = new Vector3(0, 1, 0);  // Y-Achse (vertikal)
-                    float rotationAngle = 90.0f;                   // 90 Grad
-                    Raylib.DrawModelEx(Boden, bodenPos, rotationAxis, rotationAngle, new Vector3(1, 1, 1), Color.White);
-                
+                    Raylib.DrawModelEx(Boden, bodenPos, new Vector3(0, 1, 0), 90.0f, new Vector3(1, 1, 1), Color.White);
+                    
+                    factoryManager.DrawAll();
+                    
+                    if (showPreview && selectedMachineIndex < machineDefinitions.Count)
+                    {
+                        MachineDefinition currentDef = machineDefinitions[selectedMachineIndex];
+                        Raylib.DrawModel(currentDef.Model, previewPosition, 1.0f, currentDef.PreviewColor);
+                        Raylib.DrawCubeWires(previewPosition, currentDef.Size.X, currentDef.Size.Y, currentDef.Size.Z, Color.White);
+                    }
 
                 Raylib.EndMode3D();
 
-                // UI
-                Raylib.DrawText("WASD: Move | Q/E: Up/Down | Arrows: Rotate/Zoom", 10, 10, 20, Color.White);
+                // ===== UI =====
+                Raylib.DrawText("WASD: Move | Space/Shift: Up/Down | Arrows: Rotate/Zoom", 10, 10, 18, Color.Black);
+                Raylib.DrawText($"TAB/1-{machineDefinitions.Count}: Select | LClick: Place | RClick: Remove", 10, 32, 18, Color.Black);
                 
+                if (selectedMachineIndex < machineDefinitions.Count)
+                {
+                    string info = $"Selected: {machineDefinitions[selectedMachineIndex].Name} | Placed: {placedObjects.Count}";
+                    Raylib.DrawText(info, 10, 54, 18, Color.DarkGreen);
+                }
+                
+                factoryManager.DrawDebugInfo(90);
                 UI.DebugDataUI();
                 DebugConsole.Draw();
 
@@ -219,6 +347,7 @@ namespace BeyondIndustry
             Raylib.UnloadShader(shader);
             Raylib.UnloadModel(Wand);
             Raylib.UnloadModel(Boden);
+            Raylib.UnloadModel(MaschineModel);
             Raylib.UnloadModel(cubeModel);
             Raylib.CloseWindow();
         }
