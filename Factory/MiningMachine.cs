@@ -12,6 +12,10 @@ namespace BeyondIndustry.Factory
         public int OutputPerCycle { get; private set; }
         public int TotalExtracted { get; private set; }
         
+        // ===== NEU: Output Buffer =====
+        public int OutputBuffer { get; private set; }
+        public int MaxBufferSize { get; set; }
+        
         public MiningMachine(Vector3 position, Model model, string resourceType = "Iron Ore") 
             : base(position, model)
         {
@@ -21,84 +25,100 @@ namespace BeyondIndustry.Factory
             ProductionCycleTime = 2.0f;
             PowerConsumption = 10f;
             TotalExtracted = 0;
+            
+            // NEU
+            OutputBuffer = 0;
+            MaxBufferSize = 10;  // Kann 10 Items speichern
         }
         
         protected override void Process()
         {
-            TotalExtracted += OutputPerCycle;
-            Console.WriteLine($"[Mining Drill] Gefördert: {OutputPerCycle}x {ResourceType} (Gesamt: {TotalExtracted})");
+            // Nur produzieren wenn Buffer nicht voll
+            if (OutputBuffer < MaxBufferSize)
+            {
+                OutputBuffer += OutputPerCycle;
+                TotalExtracted += OutputPerCycle;
+                Console.WriteLine($"[Mining Drill] Gefördert: {OutputPerCycle}x {ResourceType} (Buffer: {OutputBuffer}/{MaxBufferSize})");
+            }
+            else
+            {
+                Console.WriteLine($"[Mining Drill] Buffer voll! ({OutputBuffer}/{MaxBufferSize})");
+            }
+        }
+        
+        // ===== NEU: Methode zum Entnehmen =====
+        public int TakeOutput(int maxAmount)
+        {
+            int amountToTake = Math.Min(maxAmount, OutputBuffer);
+            OutputBuffer -= amountToTake;
+            return amountToTake;
+        }
+        
+        public override void Draw()
+        {
+            // Farbe basierend auf Buffer-Status
+            Color drawColor = IsRunning && OutputBuffer < MaxBufferSize ? Color.Green : 
+                             IsRunning && OutputBuffer >= MaxBufferSize ? Color.Yellow :  // Buffer voll
+                             Color.Gray;
+            Raylib.DrawModel(Model, Position, 1.0f, drawColor);
+            base.Draw();  // Zeigt Fortschrittsbalken
         }
         
         public override string GetDebugInfo()
         {
-            return base.GetDebugInfo() + $" | Extracted: {TotalExtracted}x {ResourceType}";
+            return base.GetDebugInfo() + $" | Buffer: {OutputBuffer}/{MaxBufferSize} | Total: {TotalExtracted}x {ResourceType}";
         }
         
         // ===== PROVIDER FÜR MASCHINEN-DEFINITIONEN =====
-        // Hier definierst du alle Varianten dieser Maschine!
         public class Provider : IMachineProvider
         {
             public List<MachineDefinition> GetDefinitions(Model defaultModel)
             {
                 var definitions = new List<MachineDefinition>();
                 
-                // ===== IRON MINING DRILL =====
-                definitions.Add(new MachineDefinition
+                // Iron Drill
+                var ironDef = new MachineDefinition
                 {
                     Name = "Iron Mining Drill",
-                    MachineType = "MiningDrill",
+                    MachineType = "MiningDrill_Iron",
                     Model = defaultModel,
-                    PreviewColor = new Color(70, 130, 180, 128),    // Stahlblau
-                    Size = new Vector3(1, 1, 1),
+                    PreviewColor = new Color(70, 130, 180, 128),
+                    Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
-                    
                     OutputResource = "Iron Ore",
                     ProductionTime = 2.0f,
-                    PowerConsumption = 10f,
-                    
-                    // Factory-Funktion
-                    CreateMachineFunc = (pos) => new MiningMachine(pos, defaultModel, "Iron Ore")
-                    {
-                        ProductionCycleTime = 2.0f,
-                        PowerConsumption = 10f
-                    }
-                });
+                    PowerConsumption = 10f
+                };
                 
-                // ===== COPPER MINING DRILL =====
-                definitions.Add(new MachineDefinition
+                ironDef.CreateMachineFunc = (pos) => new MiningMachine(pos, ironDef.Model, "Iron Ore")
+                {
+                    ProductionCycleTime = 2.0f,
+                    PowerConsumption = 10f
+                };
+                
+                definitions.Add(ironDef);
+                
+                // Copper Drill
+                var copperDef = new MachineDefinition
                 {
                     Name = "Copper Mining Drill",
-                    MachineType = "MiningDrill",
+                    MachineType = "MiningDrill_Copper",
                     Model = defaultModel,
-                    PreviewColor = new Color(184, 115, 51, 128),    // Kupferfarbe
-                    Size = new Vector3(1, 1, 1),
+                    PreviewColor = new Color(184, 115, 51, 128),
+                    Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
-                    
                     OutputResource = "Copper Ore",
                     ProductionTime = 1.5f,
-                    PowerConsumption = 12f,
-                    
-                    CreateMachineFunc = (pos) => new MiningMachine(pos, defaultModel, "Copper Ore")
-                    {
-                        ProductionCycleTime = 1.5f,
-                        PowerConsumption = 12f
-                    }
-                });
+                    PowerConsumption = 12f
+                };
                 
-                // ===== WEITERE MINING DRILLS HIER HINZUFÜGEN =====
-                /*
-                definitions.Add(new MachineDefinition
+                copperDef.CreateMachineFunc = (pos) => new MiningMachine(pos, copperDef.Model, "Copper Ore")
                 {
-                    Name = "Coal Mining Drill",
-                    MachineType = "MiningDrill",
-                    Model = defaultModel,
-                    PreviewColor = new Color(50, 50, 50, 128),
-                    OutputResource = "Coal",
-                    ProductionTime = 1.0f,
-                    PowerConsumption = 8f,
-                    CreateMachineFunc = (pos) => new MiningMachine(pos, defaultModel, "Coal")
-                });
-                */
+                    ProductionCycleTime = 1.5f,
+                    PowerConsumption = 12f
+                };
+                
+                definitions.Add(copperDef);
                 
                 return definitions;
             }

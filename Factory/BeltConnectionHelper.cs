@@ -5,61 +5,89 @@ using System.Collections.Generic;
 namespace BeyondIndustry.Factory
 {
     // ===== HELPER FÜR FÖRDERBAND-VERBINDUNGEN =====
-    // Automatisches Verbinden von Bändern mit Maschinen
     public static class BeltConnectionHelper
     {
-        // ===== VERBINDE BAND MIT MASCHINEN =====
-        // Sucht automatisch nach Maschinen in Richtung des Bands
         public static void ConnectBelt(ConveyorBelt belt, List<FactoryMachine> allMachines, float connectionDistance = 1.1f)
         {
-            // Suche nach Input-Maschine (hinter dem Band)
+            Console.WriteLine($"\n=== Verbinde Belt @ {belt.Position}, Richtung: {belt.Direction} ===");
+            
+            // Input suchen
             Vector3 inputSearchPos = belt.Position - belt.Direction * connectionDistance;
-            FactoryMachine inputMachine = FindMachineAtPosition(allMachines, inputSearchPos, 0.5f);
+            Console.WriteLine($"Suche Input bei: {inputSearchPos}");
+            
+            FactoryMachine? inputMachine = FindMachineAtPosition(allMachines, inputSearchPos, 1f);
             
             if (inputMachine != null && inputMachine != belt)
             {
                 belt.InputMachine = inputMachine;
-                Console.WriteLine($"[Belt] Input verbunden: {inputMachine.MachineType}");
+                Console.WriteLine($"✓ Input verbunden: {inputMachine.MachineType} @ {inputMachine.Position}");
+            }
+            else
+            {
+                belt.InputMachine = null;
+                Console.WriteLine($"✗ Kein Input gefunden");
             }
             
-            // Suche nach Output-Maschine (vor dem Band)
+            // Output suchen
             Vector3 outputSearchPos = belt.Position + belt.Direction * connectionDistance;
-            FactoryMachine outputMachine = FindMachineAtPosition(allMachines, outputSearchPos, 0.5f);
+            Console.WriteLine($"Suche Output bei: {outputSearchPos}");
+            
+            FactoryMachine? outputMachine = FindMachineAtPosition(allMachines, outputSearchPos, 1f);
             
             if (outputMachine != null && outputMachine != belt)
             {
                 belt.OutputMachine = outputMachine;
-                Console.WriteLine($"[Belt] Output verbunden: {outputMachine.MachineType}");
+                Console.WriteLine($"✓ Output verbunden: {outputMachine.MachineType} @ {outputMachine.Position}");
             }
+            else
+            {
+                belt.OutputMachine = null;
+                Console.WriteLine($"✗ Kein Output gefunden");
+            }
+            
+            Console.WriteLine($"=== Verbindung abgeschlossen ===\n");
         }
         
-        // ===== FINDE MASCHINE AN POSITION =====
-      // Ändere diese Methode:
         private static FactoryMachine? FindMachineAtPosition(List<FactoryMachine> machines, Vector3 position, float tolerance)
         {
+            Console.WriteLine($"  Suche Maschine bei {position} (Toleranz: {tolerance})");
+            
             foreach (var machine in machines)
             {
-                if (Vector3.Distance(machine.Position, position) < tolerance)
+                // NUR X und Z vergleichen, Y ignorieren (da Maschinen verschiedene Höhen haben können)
+                float distanceXZ = MathF.Sqrt(
+                    MathF.Pow(machine.Position.X - position.X, 2) + 
+                    MathF.Pow(machine.Position.Z - position.Z, 2)
+                );
+                
+                Console.WriteLine($"    - {machine.MachineType} @ {machine.Position}, Distanz (XZ): {distanceXZ:F2}");
+                
+                if (distanceXZ < tolerance)
                 {
+                    Console.WriteLine($"    → GEFUNDEN!");
                     return machine;
                 }
             }
+            
+            Console.WriteLine($"    → Nichts gefunden");
             return null;
         }
         
-        // ===== AKTUALISIERE ALLE VERBINDUNGEN =====
-        // Rufe das auf wenn Maschinen platziert/entfernt werden
         public static void UpdateAllConnections(FactoryManager factoryManager)
         {
             List<ConveyorBelt> belts = factoryManager.GetMachinesOfType<ConveyorBelt>();
             List<FactoryMachine> allMachines = factoryManager.GetAllMachines();
+            
+            Console.WriteLine($"\n========== UPDATE ALL BELT CONNECTIONS ==========");
+            Console.WriteLine($"Anzahl Bänder: {belts.Count}");
+            Console.WriteLine($"Anzahl Maschinen gesamt: {allMachines.Count}");
             
             foreach (var belt in belts)
             {
                 ConnectBelt(belt, allMachines);
             }
             
-            Console.WriteLine($"[Belt] {belts.Count} Bänder verbunden");
+            Console.WriteLine($"========== VERBINDUNGEN ABGESCHLOSSEN ==========\n");
         }
     }
 }

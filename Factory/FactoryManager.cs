@@ -5,19 +5,12 @@ using Raylib_cs;
 namespace BeyondIndustry.Factory
 {
     // ===== FACTORY MANAGER =====
-    // Verwaltet alle Factory-Maschinen zentral
     public class FactoryManager
     {
-        // Liste aller Maschinen
         private List<FactoryMachine> machines;
         
-        public List<FactoryMachine> GetAllMachines()
-        {
-            return new List<FactoryMachine>(machines);
-        }
-        // Gesamt-Energie-System
-        public float TotalPowerGeneration { get; set; }     // Wie viel Strom wird erzeugt
-        public float TotalPowerDemand { get; private set; } // Wie viel wird benötigt
+        public float TotalPowerGeneration { get; set; }
+        public float TotalPowerDemand { get; private set; }
         public float PowerEfficiency => TotalPowerGeneration > 0 ? 
                                        Math.Min(1f, TotalPowerGeneration / TotalPowerDemand) : 
                                        0f;
@@ -25,35 +18,29 @@ namespace BeyondIndustry.Factory
         public FactoryManager()
         {
             machines = new List<FactoryMachine>();
-            TotalPowerGeneration = 100f;  // Start mit 100 Einheiten Strom
+            TotalPowerGeneration = 100f;
         }
         
-        // ===== MASCHINE HINZUFÜGEN =====
         public void AddMachine(FactoryMachine machine)
         {
             machines.Add(machine);
             Console.WriteLine($"[Factory] Maschine platziert: {machine.MachineType} bei {machine.Position}");
         }
         
-        // ===== MASCHINE ENTFERNEN =====
         public void RemoveMachine(FactoryMachine machine)
         {
             machines.Remove(machine);
             Console.WriteLine($"[Factory] Maschine entfernt: {machine.MachineType}");
         }
         
-        // ===== UPDATE ALLE MASCHINEN =====
         public void Update(float deltaTime)
         {
-            // 1. Berechne Gesamt-Strombedarf
             TotalPowerDemand = 0f;
             foreach (var machine in machines)
             {
                 TotalPowerDemand += machine.PowerConsumption;
             }
             
-            // 2. Verteile Strom an Maschinen
-            // Wenn nicht genug Strom, wird proportional verteilt
             float powerRatio = TotalPowerDemand > 0 ? 
                               Math.Min(1f, TotalPowerGeneration / TotalPowerDemand) : 
                               1f;
@@ -63,14 +50,12 @@ namespace BeyondIndustry.Factory
                 machine.CurrentPower = machine.PowerConsumption * powerRatio;
             }
             
-            // 3. Update alle Maschinen
             foreach (var machine in machines)
             {
                 machine.Update(deltaTime);
             }
         }
         
-        // ===== ZEICHNE ALLE MASCHINEN =====
         public void DrawAll()
         {
             foreach (var machine in machines)
@@ -79,7 +64,6 @@ namespace BeyondIndustry.Factory
             }
         }
         
-        // ===== DEBUG INFO =====
         public void DrawDebugInfo(int startY = 150)
         {
             Raylib.DrawText($"=== Factory Status ===", 10, startY, 20, Color.White);
@@ -90,29 +74,24 @@ namespace BeyondIndustry.Factory
             foreach (var machine in machines)
             {
                 string info = machine.GetDebugInfo();
-                Color infoColor = machine.IsRunning ? Color.Green : Color.Gray;
+                Color infoColor = machine.IsRunning ? Color.White : Color.Gray;
                 Raylib.DrawText(info, 10, y, 16, infoColor);
                 y += 20;
             }
         }
         
-        // ===== HILFSMETHODEN =====
-        
-        // Finde Maschine an Position
-// Ändere diese Methode:
-public FactoryMachine? GetMachineAtPosition(System.Numerics.Vector3 position, float tolerance = 0.1f)
-{
-    foreach (var machine in machines)
-    {
-        if (System.Numerics.Vector3.Distance(machine.Position, position) < tolerance)
+        public FactoryMachine? GetMachineAtPosition(System.Numerics.Vector3 position, float tolerance = 0.1f)
         {
-            return machine;
+            foreach (var machine in machines)
+            {
+                if (System.Numerics.Vector3.Distance(machine.Position, position) < tolerance)
+                {
+                    return machine;
+                }
+            }
+            return null;
         }
-    }
-    return null;
-}
         
-        // Hole alle Maschinen eines bestimmten Typs
         public List<T> GetMachinesOfType<T>() where T : FactoryMachine
         {
             List<T> result = new List<T>();
@@ -126,7 +105,11 @@ public FactoryMachine? GetMachineAtPosition(System.Numerics.Vector3 position, fl
             return result;
         }
         
-        // Statistiken
+        public List<FactoryMachine> GetAllMachines()
+        {
+            return new List<FactoryMachine>(machines);
+        }
+        
         public int GetTotalMachinesRunning()
         {
             int count = 0;

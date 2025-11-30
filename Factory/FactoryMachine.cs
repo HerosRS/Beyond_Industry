@@ -5,28 +5,27 @@ using Raylib_cs;
 namespace BeyondIndustry.Factory
 {
     // ===== BASIS-KLASSE FÜR ALLE FACTORY-MASCHINEN =====
-    // Jede Maschine in deiner Factory erbt von dieser Klasse
     public abstract class FactoryMachine
     {
-        // Grundlegende Eigenschaften jeder Maschine
-        public Vector3 Position { get; set; }           // Wo steht die Maschine?
-        public string MachineType { get; protected set; }   // Was für eine Maschine (z.B. "Miner", "Smelter")
-        public bool IsRunning { get; set; }             // Läuft die Maschine gerade?
-        public Model Model { get; set; }                // 3D-Modell
-        public Color Tint { get; set; }                 // Farbe der Maschine
+        // Grundlegende Eigenschaften
+        public Vector3 Position { get; set; }
+        public string MachineType { get; protected set; } = "";
+        public bool IsRunning { get; set; }
+        public Model Model { get; set; }
+        public Color Tint { get; set; }
         
         // Energie-System
-        public float PowerConsumption { get; set; }   // Wie viel Strom verbraucht sie?
-        public float CurrentPower { get; set; }                 // Wie viel Strom hat sie gerade?
+        public float PowerConsumption { get; set; }
+        public float CurrentPower { get; set; }
         
         // Timer für Produktion
-        protected float productionTimer = 0f;           // Interner Timer
-        public float ProductionCycleTime { get; protected set; }    // Wie lange dauert ein Produktions-Zyklus?
+        protected float productionTimer = 0f;
+        public float ProductionCycleTime { get; set; }
         
         // Status-Anzeige
         public float ProductionProgress => ProductionCycleTime > 0 ? productionTimer / ProductionCycleTime : 0f;
         
-        // Konstruktor - wird aufgerufen wenn eine neue Maschine erstellt wird
+        // Konstruktor
         protected FactoryMachine(Vector3 position, Model model)
         {
             Position = position;
@@ -37,7 +36,6 @@ namespace BeyondIndustry.Factory
         }
         
         // ===== UPDATE-METHODE =====
-        // Diese Methode wird jeden Frame aufgerufen und verarbeitet die Maschinen-Logik
         public virtual void Update(float deltaTime)
         {
             // Nur aktiv wenn genug Strom vorhanden
@@ -51,23 +49,20 @@ namespace BeyondIndustry.Factory
                 // Wenn Timer abgelaufen, produziere etwas
                 if (productionTimer >= ProductionCycleTime)
                 {
-                    Process();  // Rufe Verarbeitungs-Methode auf
-                    productionTimer = 0f;  // Reset Timer
+                    Process();
+                    productionTimer = 0f;
                 }
             }
             else
             {
                 IsRunning = false;
-                // Timer läuft nicht weiter wenn kein Strom
             }
         }
         
         // ===== ABSTRAKTE VERARBEITUNGS-METHODE =====
-        // Jede Maschine muss ihre eigene Process-Methode implementieren
         protected abstract void Process();
         
         // ===== DRAW-METHODE =====
-        // Zeichnet die Maschine (kann in abgeleiteten Klassen überschrieben werden)
         public virtual void Draw()
         {
             // Ändere Farbe basierend auf Status

@@ -8,21 +8,22 @@ namespace BeyondIndustry.Factory
     public class MachineDefinition
     {
         // Visuelle Eigenschaften
-    public string Name { get; set; } = "";
-    public string MachineType { get; set; } = "";
-    public Model Model { get; set; }
-    public Color PreviewColor { get; set; }
-    public Vector3 Size { get; set; }
-    public float YOffset { get; set; }
-    
-    // Factory-Eigenschaften
-    public string? InputResource { get; set; }
-    public string? OutputResource { get; set; }
-    public float ProductionTime { get; set; }
-    public float PowerConsumption { get; set; }
-    public int BufferSize { get; set; }
+        public string Name { get; set; } = "";
+        public string MachineType { get; set; } = "";
+        public Model Model { get; set; }
+        public Color PreviewColor { get; set; }
+        public Vector3 Size { get; set; }
+        public float YOffset { get; set; }
+        
+        // Factory-Eigenschaften
+        public string? InputResource { get; set; }
+        public string? OutputResource { get; set; }
+        public float ProductionTime { get; set; }
+        public float PowerConsumption { get; set; }
+        public int BufferSize { get; set; }
+        
         // ===== FACTORY-METHODE FÜR ERSTELLUNG =====
-     public System.Func<Vector3, FactoryMachine>? CreateMachineFunc { get; set; }
+        public System.Func<Vector3, FactoryMachine>? CreateMachineFunc { get; set; }
         
         public MachineDefinition()
         {
@@ -35,7 +36,7 @@ namespace BeyondIndustry.Factory
         }
         
         // ===== ERSTELLE MASCHINE =====
-        public FactoryMachine CreateMachine(Vector3 position)
+        public FactoryMachine? CreateMachine(Vector3 position)
         {
             if (CreateMachineFunc != null)
             {

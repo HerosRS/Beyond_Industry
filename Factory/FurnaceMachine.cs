@@ -86,51 +86,56 @@ namespace BeyondIndustry.Factory
                 var definitions = new List<MachineDefinition>();
                 
                 // ===== IRON FURNACE =====
-                definitions.Add(new MachineDefinition
+                var ironDef = new MachineDefinition
                 {
                     Name = "Iron Furnace",
-                    MachineType = "Furnace",
+                    MachineType = "Iron_Furnace",
                     Model = defaultModel,
-                    PreviewColor = new Color(255, 140, 0, 128),     // Orange
-                    Size = new Vector3(1, 1, 1),
+                    PreviewColor = new Color(255, 140, 0, 128),
+                    Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
                     
                     InputResource = "Iron Ore",
                     OutputResource = "Iron Plate",
                     ProductionTime = 3.0f,
                     PowerConsumption = 15f,
-                    BufferSize = 10,
-                    
-                    CreateMachineFunc = (pos) => new FurnaceMachine(pos, defaultModel, "Iron Ore", "Iron Plate")
-                    {
-                        ProductionCycleTime = 3.0f,
-                        PowerConsumption = 15f,
-                        MaxBufferSize = 10
-                    }
-                });
+                    BufferSize = 10
+                };
+                
+                ironDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, ironDef.Model, "Iron Ore", "Iron Plate")
+                {
+                    ProductionCycleTime = 3.0f,
+                    PowerConsumption = 15f,
+                    MaxBufferSize = 10
+                };
+                
+                definitions.Add(ironDef);
                 
                 // ===== COPPER FURNACE =====
-                definitions.Add(new MachineDefinition
+                var copperDef = new MachineDefinition
                 {
                     Name = "Copper Furnace",
-                    MachineType = "Furnace",
+                    MachineType = "Copper_Furnace",
                     Model = defaultModel,
-                    PreviewColor = new Color(255, 100, 0, 128),     // Dunkles Orange
-                    Size = new Vector3(1, 1, 1),
+                    PreviewColor = new Color(255, 100, 0, 128),
+                    Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
                     
                     InputResource = "Copper Ore",
                     OutputResource = "Copper Plate",
                     ProductionTime = 2.5f,
                     PowerConsumption = 15f,
-                    BufferSize = 10,
-                    
-                    CreateMachineFunc = (pos) => new FurnaceMachine(pos, defaultModel, "Copper Ore", "Copper Plate")
-                    {
-                        ProductionCycleTime = 2.5f,
-                        PowerConsumption = 15f
-                    }
-                });
+                    BufferSize = 10
+                };
+                
+                copperDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, copperDef.Model, "Copper Ore", "Copper Plate")
+                {
+                    ProductionCycleTime = 2.5f,
+                    PowerConsumption = 15f,
+                    MaxBufferSize = 10  // <- DAS HAT GEFEHLT!
+                };
+                
+                definitions.Add(copperDef);
                 
                 return definitions;
             }
