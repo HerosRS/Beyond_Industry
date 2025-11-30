@@ -1,6 +1,6 @@
 #version 330
 
-// Input von Vertex Shader
+// Input from vertex shader
 in vec3 fragPosition;
 in vec2 fragTexCoord;
 in vec4 fragColor;

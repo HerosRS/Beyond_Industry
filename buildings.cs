@@ -19,14 +19,14 @@ public class Building
             // Nord-Wand (Z = 0)
             for (int x = 0; x < gridSize; x++)
             {
-                Vector3 pos = new Vector3(x * cellSize, 0, 0);
+                Vector3 pos = new Vector3(x-4 * cellSize, 0, -5);
                 Raylib.DrawModelEx(wandModel, pos, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
             }
                         
             // West-Wand (X = 0)
             for (int z = 0; z < gridSize; z++)
             {
-                Vector3 pos = new Vector3(0, 0, z * cellSize);
+                Vector3 pos = new Vector3(-5, 0, z-4 * cellSize);
                 // 90° rotiert für Seiten-Wände
                 Raylib.DrawModelEx(wandModel, pos, new Vector3(0, 1, 0), 0.0f, Vector3.One,  Color.White);
             }
