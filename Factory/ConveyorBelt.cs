@@ -30,10 +30,11 @@ namespace BeyondIndustry.Factory
         public int MaxItemsOnBelt { get; set; } = 6;
         public float ItemHeight { get; set; } = 0.3f;
         
-        // ===== ANPASSBARE EINSTELLUNGEN =====
-        public float MinItemSpacing { get; set; } = 0.2f;
-        public float BeltLength { get; set; } = 1.0f;           // Logische Länge für Berechnungen
-        public float RenderLength { get; set; } = 1f;        // Physische Länge für Rendering (bis Rand)
+        // ===== OPTIMALE WERTE (VON DIR GETESTET) =====
+        public float SpawnPoint { get; set; } = -0.5f;       // Items spawnen AUSSERHALB am Anfang
+        public float EndPoint { get; set; } = 1.5f;          // Items enden AUSSERHALB am Ende
+        public float MinItemSpacing { get; set; } = 0.33f;   // Organischer Abstand
+        public float BeltLength { get; set; } = 1.0f;        // Physische Belt-Länge
         
         private List<ConveyorItem> items = new List<ConveyorItem>();
         private float updateAccumulator = 0f;
@@ -44,7 +45,7 @@ namespace BeyondIndustry.Factory
         {
             MachineType = "ConveyorBelt";
             Direction = Vector3.Normalize(direction);
-            ProductionCycleTime = 0.5f;
+            ProductionCycleTime = 0.3f;
             PowerConsumption = 2f;
             InputMachine = null;
             OutputMachine = null;
@@ -58,6 +59,12 @@ namespace BeyondIndustry.Factory
         public override void Update(float deltaTime)
         {
             IsRunning = IsManuallyEnabled && HasPower();
+            
+            // ===== LIVE DEBUG CONTROLS =====
+            if (Data.GlobalData.ShowDebugInfo)
+            {
+                HandleDebugInput();
+            }
             
             if (!IsRunning) return;
             
@@ -77,12 +84,79 @@ namespace BeyondIndustry.Factory
             }
         }
         
+        // ===== LIVE DEBUG INPUT =====
+        private void HandleDebugInput()
+        {
+            if (!IsNearMouse()) return;
+            
+            float adjustSpeed = 0.01f;
+            
+            // Numpad 7/4 - SpawnPoint anpassen
+            if (Raylib.IsKeyDown(KeyboardKey.Kp7))
+            {
+                SpawnPoint += adjustSpeed;
+                if (SpawnPoint > EndPoint - MinItemSpacing) SpawnPoint = EndPoint - MinItemSpacing;
+                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
+            }
+            if (Raylib.IsKeyDown(KeyboardKey.Kp4))
+            {
+                SpawnPoint -= adjustSpeed;
+                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
+            }
+            
+            // Numpad 9/6 - EndPoint anpassen
+            if (Raylib.IsKeyDown(KeyboardKey.Kp9))
+            {
+                EndPoint += adjustSpeed;
+                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
+            }
+            if (Raylib.IsKeyDown(KeyboardKey.Kp6))
+            {
+                EndPoint -= adjustSpeed;
+                if (EndPoint < SpawnPoint + MinItemSpacing) EndPoint = SpawnPoint + MinItemSpacing;
+                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
+            }
+            
+            // Numpad 8/5 - MinItemSpacing anpassen
+            if (Raylib.IsKeyDown(KeyboardKey.Kp8))
+            {
+                MinItemSpacing += adjustSpeed;
+                if (MinItemSpacing > 1.0f) MinItemSpacing = 1.0f;
+                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
+            }
+            if (Raylib.IsKeyDown(KeyboardKey.Kp5))
+            {
+                MinItemSpacing -= adjustSpeed;
+                if (MinItemSpacing < 0.05f) MinItemSpacing = 0.05f;
+                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
+            }
+            
+            // Numpad 0 - Reset zu optimalen Werten
+            if (Raylib.IsKeyPressed(KeyboardKey.Kp0))
+            {
+                SpawnPoint = -0.5f;
+                EndPoint = 1.5f;
+                MinItemSpacing = 0.33f;
+                Console.WriteLine($"[Belt] Reset zu optimalen Werten");
+            }
+        }
+        
+        private bool IsNearMouse()
+        {
+            Ray mouseRay = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Data.GlobalData.camera);
+            BoundingBox beltBox = new BoundingBox(
+                Position - new Vector3(0.5f, 0.5f, 0.5f),
+                Position + new Vector3(0.5f, 1.5f, 0.5f)
+            );
+            RayCollision collision = Raylib.GetRayCollisionBox(mouseRay, beltBox);
+            return collision.Hit;
+        }
+        
         private void UpdateItems(float deltaTime)
         {
             if (items.Count == 0) return;
             
-            float deltaProgress = BeltSpeed * deltaTime / BeltLength;
-            
+            float deltaProgress = BeltSpeed * deltaTime;
             items.Sort((a, b) => a.Progress.CompareTo(b.Progress));
             
             for (int i = items.Count - 1; i >= 0; i--)
@@ -90,12 +164,11 @@ namespace BeyondIndustry.Factory
                 ConveyorItem item = items[i];
                 float newProgress = item.Progress + deltaProgress;
                 
-                // Collision
+                // Collision mit Item davor
                 if (i < items.Count - 1)
                 {
                     ConveyorItem itemAhead = items[i + 1];
-                    float normalizedSpacing = MinItemSpacing / BeltLength;
-                    float maxAllowedProgress = itemAhead.Progress - normalizedSpacing;
+                    float maxAllowedProgress = itemAhead.Progress - MinItemSpacing;
                     
                     if (newProgress > maxAllowedProgress)
                     {
@@ -105,8 +178,8 @@ namespace BeyondIndustry.Factory
                 
                 item.Progress = newProgress;
                 
-                // Item am Ende (Progress >= 1.0)
-                if (item.Progress >= 0.99f)
+                // Item erreicht EndPoint
+                if (item.Progress >= EndPoint)
                 {
                     if (TryTransferToOutput(item))
                     {
@@ -114,7 +187,7 @@ namespace BeyondIndustry.Factory
                     }
                     else
                     {
-                        item.Progress = 1.0f;
+                        item.Progress = EndPoint;
                     }
                 }
             }
@@ -125,30 +198,27 @@ namespace BeyondIndustry.Factory
             TryPickupFromInput();
         }
         
-        // ===== ITEM HINZUFÜGEN - DIREKT AM ANFANG =====
+        // ===== ITEM HINZUFÜGEN AM SPAWNPOINT =====
         public bool AddItem(string resourceType, int amount)
         {
             if (items.Count >= MaxItemsOnBelt)
                 return false;
             
-            // Neues Item startet bei Progress 0.0 (direkt am Anfang)
-            float startProgress = 0.0f;
+            // Items starten am SpawnPoint
+            float startProgress = SpawnPoint;
             
             if (items.Count > 0)
             {
                 // Finde vorderstes Item
-                float minProgress = 1.0f;
+                float minProgress = EndPoint;
                 foreach (var item in items)
                 {
                     if (item.Progress < minProgress)
                         minProgress = item.Progress;
                 }
                 
-                // Normalisiere Spacing
-                float normalizedSpacing = MinItemSpacing / BeltLength;
-                
-                // Prüfe ob genug Platz ist
-                if (minProgress < normalizedSpacing)
+                // Ist genug Platz für neues Item?
+                if (minProgress < startProgress + MinItemSpacing)
                     return false;
             }
             
@@ -179,7 +249,8 @@ namespace BeyondIndustry.Factory
             else if (InputMachine is ConveyorBelt inputBelt && inputBelt.items.Count > 0)
             {
                 var lastItem = inputBelt.items[inputBelt.items.Count - 1];
-                if (lastItem.Progress >= 0.95f)
+                // Transfer wenn Item am EndPoint ist
+                if (lastItem.Progress >= inputBelt.EndPoint - 0.05f)
                 {
                     if (AddItem(lastItem.ResourceType, lastItem.Amount))
                         inputBelt.items.RemoveAt(inputBelt.items.Count - 1);
@@ -229,15 +300,16 @@ namespace BeyondIndustry.Factory
             Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, beltColor);
         }
         
-        // ===== ITEMS ZEICHNEN - BIS ZUM RAND =====
+        // ===== ITEMS ZEICHNEN MIT OPTIMALEN WERTEN =====
         private void DrawItems()
         {
             foreach (var item in items)
             {
-                // Progress 0.0 = linke Kante, 1.0 = rechte Kante
-                // Nutze RenderLength für physische Position
-                float relativePosition = (item.Progress - 0.2f) * RenderLength;
-                Vector3 itemPosition = Position + Direction * relativePosition;
+                // Progress direkt auf Belt-Länge mappen
+                // SpawnPoint -0.5 bedeutet Items starten VOR dem Belt
+                // EndPoint 1.5 bedeutet Items enden NACH dem Belt
+                float normalizedPosition = (item.Progress - 0.5f);
+                Vector3 itemPosition = Position + Direction * normalizedPosition * BeltLength;
                 itemPosition.Y += ItemHeight + 1;
                 
                 Resource? resource = ResourceRegistry.Get(item.ResourceType);
@@ -253,52 +325,86 @@ namespace BeyondIndustry.Factory
             }
         }
         
-        // ===== VERBINDUNGEN AN DEN KANTEN =====
+        // ===== VERBINDUNGEN + DEBUG VISUALISIERUNG =====
         private void DrawConnections()
         {
             float sphereSize = 0.1f;
             
-            // Input an der vorderen physischen Kante (nutzt RenderLength)
+            // Input am SpawnPoint (GRÜN)
             if (InputMachine != null)
             {
-                Vector3 inputPos = Position + Direction * (-1f * RenderLength);
+                float spawnPos = (SpawnPoint - 0.5f) * BeltLength;
+                Vector3 inputPos = Position + Direction * spawnPos;
                 inputPos.Y += ItemHeight + 1;
-                Raylib.DrawSphere(inputPos, sphereSize, new Color(0, 255, 0, 200));
+                Raylib.DrawSphere(inputPos, sphereSize, new Color(0, 255, 0, 255));
+                
+                // Label
+                Vector2 screenPos = Raylib.GetWorldToScreen(inputPos, Data.GlobalData.camera);
+                Raylib.DrawText($"SPAWN", (int)screenPos.X - 25, (int)screenPos.Y - 30, 12, Color.Green);
             }
             
-            // Output an der hinteren physischen Kante (nutzt RenderLength)
+            // Output am EndPoint (BLAU)
             if (OutputMachine != null)
             {
-                Vector3 outputPos = Position + Direction * (1f * RenderLength);
+                float endPos = (EndPoint - 0.5f) * BeltLength;
+                Vector3 outputPos = Position + Direction * endPos;
                 outputPos.Y += ItemHeight + 1;
-                Raylib.DrawSphere(outputPos, sphereSize, new Color(0, 100, 255, 200));
+                Raylib.DrawSphere(outputPos, sphereSize, new Color(0, 100, 255, 255));
+                
+                // Label
+                Vector2 screenPos = Raylib.GetWorldToScreen(outputPos, Data.GlobalData.camera);
+                Raylib.DrawText($"END", (int)screenPos.X - 15, (int)screenPos.Y - 30, 12, Color.Blue);
             }
             
-            // Debug: Zeige Belt-Grenzen
+            // Debug: Belt-Grenzen
             if (Data.GlobalData.ShowDebugInfo)
             {
-                // Logische Grenzen (gelb/rot) - für Debugging
-                Vector3 startPos = Position + Direction * (-1f * BeltLength);
-                startPos.Y += ItemHeight + 1f;
+                // Absoluter Start (GELB)
+                Vector3 startPos = Position + Direction * (-0.5f * BeltLength);
+                startPos.Y += ItemHeight + 1.2f;
                 Raylib.DrawSphere(startPos, 0.05f, Color.Yellow);
                 
-                Vector3 endPos = Position + Direction * (1f * BeltLength);
-                endPos.Y += ItemHeight + 1f;
-                Raylib.DrawSphere(endPos, 0.05f, Color.Red);
+                // Absolutes Ende (ROT)
+                Vector3 endPosAbs = Position + Direction * (0.5f * BeltLength);
+                endPosAbs.Y += ItemHeight + 1.2f;
+                Raylib.DrawSphere(endPosAbs, 0.05f, Color.Red);
                 
-                // Physische Grenzen (cyan/magenta) - wo Items tatsächlich sind
-                Vector3 renderStart = Position + Direction * (-1f * RenderLength);
-                renderStart.Y += ItemHeight + 1f;
-                Raylib.DrawSphere(renderStart, 0.03f, Color.DarkBlue);
+                // SpawnPoint (HELLGRÜN)
+                float spawnPosNorm = (SpawnPoint - 0.5f) * BeltLength;
+                Vector3 spawnPosVec = Position + Direction * spawnPosNorm;
+                spawnPosVec.Y += ItemHeight + 1.3f;
+                Raylib.DrawSphere(spawnPosVec, 0.06f, Color.Lime);
                 
-                Vector3 renderEnd = Position + Direction * (1f * RenderLength);
-                renderEnd.Y += ItemHeight + 1f;
-                Raylib.DrawSphere(renderEnd, 0.03f, Color.Magenta);
+                // EndPoint (HELLBLAU)
+                float endPosNorm = (EndPoint - 0.5f) * BeltLength;
+                Vector3 endPosVec = Position + Direction * endPosNorm;
+                endPosVec.Y += ItemHeight + 1.3f;
+                Raylib.DrawSphere(endPosVec, 0.06f, Color.SkyBlue);
                 
-                // Mitte
-                Vector3 midPos = Position;
-                midPos.Y += ItemHeight + 1f;
-                Raylib.DrawSphere(midPos, 0.03f, Color.White);
+                // Zeige Controls wenn Belt in Maus-Nähe
+                if (IsNearMouse())
+                {
+                    Vector2 screenPos = Raylib.GetWorldToScreen(Position + new Vector3(0, 2, 0), Data.GlobalData.camera);
+                    int y = (int)screenPos.Y;
+                    
+                    Raylib.DrawText("=== BELT CONTROLS ===", (int)screenPos.X - 80, y, 14, Color.Yellow);
+                    y += 20;
+                    Raylib.DrawText("Numpad 7/4: SpawnPoint", (int)screenPos.X - 80, y, 12, Color.White);
+                    y += 15;
+                    Raylib.DrawText("Numpad 9/6: EndPoint", (int)screenPos.X - 80, y, 12, Color.White);
+                    y += 15;
+                    Raylib.DrawText("Numpad 8/5: Spacing", (int)screenPos.X - 80, y, 12, Color.White);
+                    y += 15;
+                    Raylib.DrawText("Numpad 0: Reset", (int)screenPos.X - 80, y, 12, Color.White);
+                    y += 20;
+                    Raylib.DrawText($"Current Values:", (int)screenPos.X - 80, y, 12, Color.Yellow);
+                    y += 15;
+                    Raylib.DrawText($"Spawn: {SpawnPoint:F2}", (int)screenPos.X - 80, y, 12, Color.Lime);
+                    y += 15;
+                    Raylib.DrawText($"End: {EndPoint:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+                    y += 15;
+                    Raylib.DrawText($"Spacing: {MinItemSpacing:F2}", (int)screenPos.X - 80, y, 12, Color.White);
+                }
             }
         }
         
@@ -307,8 +413,8 @@ namespace BeyondIndustry.Factory
             string info = base.GetDebugInfo();
             info += $" | Items: {items.Count}/{MaxItemsOnBelt}";
             info += $" | Speed: {BeltSpeed:F1}";
-            info += $" | Spacing: {MinItemSpacing:F2}";
-            info += $" | Render: {RenderLength:F2}";
+            info += $" | S:{SpawnPoint:F1}→E:{EndPoint:F1}";
+            info += $" | Gap:{MinItemSpacing:F2}";
             
             if (InputMachine != null)
                 info += $" | In: {InputMachine.MachineType}";
@@ -319,7 +425,7 @@ namespace BeyondIndustry.Factory
             {
                 var firstItem = items[0];
                 string displayName = ResourceRegistry.GetDisplayName(firstItem.ResourceType);
-                info += $" | [{displayName}] Pos:{firstItem.Progress:F2}";
+                info += $" | [{displayName}] P:{firstItem.Progress:F2}";
             }
             
             return info;

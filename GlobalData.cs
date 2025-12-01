@@ -130,7 +130,7 @@ namespace BeyondIndustry.Data
     public static class GameConstants
     {
         // Grid
-        public const int DEFAULT_GRID_SIZE = 9;
+        public const int DEFAULT_GRID_SIZE = 25;
         public const float DEFAULT_CELL_SIZE = 1.0f;
         
         // Belts

@@ -134,8 +134,8 @@ namespace BeyondIndustry
                     UI.MainUI.Draw3DElements();
                     Raylib.DrawSphere(lightPosition, 0.3f, Color.Yellow);
                     
-                    Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
-                    Raylib.DrawModelEx(Boden, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
+                    //Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
+                    //Raylib.DrawModelEx(Boden, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
                     
                     factoryManager.DrawAll();
                     placementSystem.DrawPreview();
