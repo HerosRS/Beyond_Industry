@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
+using BeyondIndustry.Factory.Resources;
 
 namespace BeyondIndustry.Factory
 {
@@ -56,12 +57,21 @@ namespace BeyondIndustry.Factory
         
         public override void Draw()
         {
-            // Farbe basierend auf Buffer-Status
             Color drawColor = IsRunning && OutputBuffer < MaxBufferSize ? Color.Green : 
-                             IsRunning && OutputBuffer >= MaxBufferSize ? Color.Yellow :  // Buffer voll
-                             Color.Gray;
+                            IsRunning ? Color.Yellow : 
+                            Color.Gray;
+            
             Raylib.DrawModel(Model, Position, 1.0f, drawColor);
-            base.Draw();  // Zeigt Fortschrittsbalken
+            
+            // Zeige Ressourcen-Farbe als Indikator
+            if (OutputBuffer > 0)
+            {
+                Color resourceColor = ResourceRegistry.GetColor(ResourceType);
+                Vector3 indicatorPos = Position + new Vector3(0, 1.5f, 0);
+                Raylib.DrawCube(indicatorPos, 0.3f, 0.3f, 0.3f, resourceColor);
+            }
+            
+            base.Draw();
         }
         
         public override string GetDebugInfo()

@@ -54,7 +54,7 @@ namespace BeyondIndustry.Factory
             
             foreach (var machine in machines)
             {
-                // NUR X und Z vergleichen, Y ignorieren (da Maschinen verschiedene Höhen haben können)
+                // NUR X und Z vergleichen, Y ignorieren
                 float distanceXZ = MathF.Sqrt(
                     MathF.Pow(machine.Position.X - position.X, 2) + 
                     MathF.Pow(machine.Position.Z - position.Z, 2)
@@ -75,7 +75,8 @@ namespace BeyondIndustry.Factory
         
         public static void UpdateAllConnections(FactoryManager factoryManager)
         {
-            List<ConveyorBelt> belts = factoryManager.GetMachinesOfType<ConveyorBelt>();
+            // GEÄNDERT: Verwende GetAllBelts() statt GetMachinesOfType<T>()
+            List<ConveyorBelt> belts = factoryManager.GetAllBelts();
             List<FactoryMachine> allMachines = factoryManager.GetAllMachines();
             
             Console.WriteLine($"\n========== UPDATE ALL BELT CONNECTIONS ==========");

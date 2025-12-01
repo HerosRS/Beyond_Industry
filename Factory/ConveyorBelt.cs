@@ -2,237 +2,358 @@ using System;
 using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
+using BeyondIndustry.Factory.Resources;
 
 namespace BeyondIndustry.Factory
 {
-    // ===== ITEM AUF DEM FÖRDERBAND =====
     public class ConveyorItem
     {
-        public string ResourceType;
-        public float Progress;
-        public int Amount;
+        public string ResourceType { get; set; }
+        public int Amount { get; set; }
+        public float Progress { get; set; }  // 0.0 = Anfang, 1.0 = Ende
         
-        public ConveyorItem(string resourceType, int amount = 1)
+        public ConveyorItem(string resourceType, int amount)
         {
             ResourceType = resourceType;
             Amount = amount;
-            Progress = 0f;
+            Progress = 0.0f;
         }
     }
     
-    // ===== FÖRDERBAND =====
     public class ConveyorBelt : FactoryMachine
     {
-        public Vector3 Direction { get; private set; }
-        public float Speed { get; private set; }
-        public int MaxItems { get; private set; }
-        private List<ConveyorItem> items;
-        
         public FactoryMachine? InputMachine { get; set; }
         public FactoryMachine? OutputMachine { get; set; }
+        
+        public Vector3 Direction { get; private set; }
+        public float BeltSpeed { get; set; } = 1.0f;
+        public int MaxItemsOnBelt { get; set; } = 6;
+        public float ItemHeight { get; set; } = 0.3f;
+        
+        // ===== ANPASSBARE EINSTELLUNGEN =====
+        public float MinItemSpacing { get; set; } = 0.2f;
+        public float BeltLength { get; set; } = 1.0f;           // Logische Länge für Berechnungen
+        public float RenderLength { get; set; } = 1f;        // Physische Länge für Rendering (bis Rand)
+        
+        private List<ConveyorItem> items = new List<ConveyorItem>();
+        private float updateAccumulator = 0f;
+        private const float UPDATE_RATE = 1f / 60f;
         
         public ConveyorBelt(Vector3 position, Model model, Vector3 direction) 
             : base(position, model)
         {
-            MachineType = "Conveyor Belt";
+            MachineType = "ConveyorBelt";
             Direction = Vector3.Normalize(direction);
-            Speed = 1.0f;
-            MaxItems = 4;
             ProductionCycleTime = 0.5f;
             PowerConsumption = 2f;
-            items = new List<ConveyorItem>();
+            InputMachine = null;
+            OutputMachine = null;
         }
         
-        public bool AddItem(string resourceType, int amount = 1)
+        protected override bool HasPower()
         {
-            if (items.Count >= MaxItems)
+            return true;
+        }
+        
+        public override void Update(float deltaTime)
+        {
+            IsRunning = IsManuallyEnabled && HasPower();
+            
+            if (!IsRunning) return;
+            
+            updateAccumulator += deltaTime;
+            
+            while (updateAccumulator >= UPDATE_RATE)
             {
-                return false;
+                UpdateItems(UPDATE_RATE);
+                updateAccumulator -= UPDATE_RATE;
             }
             
-            items.Add(new ConveyorItem(resourceType, amount));
-            Console.WriteLine($"[Belt] Item hinzugefügt: {amount}x {resourceType}");
-            return true;
+            productionTimer += deltaTime;
+            if (productionTimer >= ProductionCycleTime)
+            {
+                Process();
+                productionTimer = 0f;
+            }
+        }
+        
+        private void UpdateItems(float deltaTime)
+        {
+            if (items.Count == 0) return;
+            
+            float deltaProgress = BeltSpeed * deltaTime / BeltLength;
+            
+            items.Sort((a, b) => a.Progress.CompareTo(b.Progress));
+            
+            for (int i = items.Count - 1; i >= 0; i--)
+            {
+                ConveyorItem item = items[i];
+                float newProgress = item.Progress + deltaProgress;
+                
+                // Collision
+                if (i < items.Count - 1)
+                {
+                    ConveyorItem itemAhead = items[i + 1];
+                    float normalizedSpacing = MinItemSpacing / BeltLength;
+                    float maxAllowedProgress = itemAhead.Progress - normalizedSpacing;
+                    
+                    if (newProgress > maxAllowedProgress)
+                    {
+                        newProgress = maxAllowedProgress;
+                    }
+                }
+                
+                item.Progress = newProgress;
+                
+                // Item am Ende (Progress >= 1.0)
+                if (item.Progress >= 0.99f)
+                {
+                    if (TryTransferToOutput(item))
+                    {
+                        items.RemoveAt(i);
+                    }
+                    else
+                    {
+                        item.Progress = 1.0f;
+                    }
+                }
+            }
         }
         
         protected override void Process()
         {
-            if (!IsRunning)
+            TryPickupFromInput();
+        }
+        
+        // ===== ITEM HINZUFÜGEN - DIREKT AM ANFANG =====
+        public bool AddItem(string resourceType, int amount)
+        {
+            if (items.Count >= MaxItemsOnBelt)
+                return false;
+            
+            // Neues Item startet bei Progress 0.0 (direkt am Anfang)
+            float startProgress = 0.0f;
+            
+            if (items.Count > 0)
             {
-                Console.WriteLine($"[Belt @ {Position}] Nicht aktiv (kein Strom)");
-                return;
-            }
-            
-            Console.WriteLine($"[Belt @ {Position}] Process läuft - Items: {items.Count}, Input: {InputMachine?.MachineType ?? "none"}, Output: {OutputMachine?.MachineType ?? "none"}");
-            
-            float deltaProgress = Speed * ProductionCycleTime;
-            List<ConveyorItem> itemsToRemove = new List<ConveyorItem>();
-            
-            foreach (var item in items)
-            {
-                item.Progress += deltaProgress;
-                Console.WriteLine($"[Belt] Item {item.ResourceType} Progress: {item.Progress:F2}");
+                // Finde vorderstes Item
+                float minProgress = 1.0f;
+                foreach (var item in items)
+                {
+                    if (item.Progress < minProgress)
+                        minProgress = item.Progress;
+                }
                 
-                if (item.Progress >= 1.0f)
-                {
-                    if (OutputMachine != null)
-                    {
-                        if (OutputMachine is FurnaceMachine furnace)
-                        {
-                            if (furnace.AddInput(item.ResourceType, item.Amount))
-                            {
-                                Console.WriteLine($"[Belt] Item übergeben an {OutputMachine.MachineType}: {item.Amount}x {item.ResourceType}");
-                                itemsToRemove.Add(item);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"[Belt] Furnace voll oder falscher Typ!");
-                            }
-                        }
-                        else if (OutputMachine is ConveyorBelt nextBelt)
-                        {
-                            if (nextBelt.AddItem(item.ResourceType, item.Amount))
-                            {
-                                Console.WriteLine($"[Belt] Item weitergeleitet an nächstes Band");
-                                itemsToRemove.Add(item);
-                            }
-                            else
-                            {
-                                Console.WriteLine($"[Belt] Nächstes Band voll!");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[Belt] Item am Ende: {item.Amount}x {item.ResourceType} (kein Output)");
-                        itemsToRemove.Add(item);
-                    }
-                }
-            }
-            
-            foreach (var item in itemsToRemove)
-            {
-                items.Remove(item);
-            }
-            
-            // ===== ITEMS VON INPUT HOLEN =====
-            if (InputMachine != null && items.Count < MaxItems)
-            {
-                Console.WriteLine($"[Belt] Versuche Items von {InputMachine.MachineType} zu holen...");
+                // Normalisiere Spacing
+                float normalizedSpacing = MinItemSpacing / BeltLength;
                 
-                if (InputMachine is MiningMachine miner)
-                {
-                    Console.WriteLine($"[Belt] Miner hat OutputBuffer: {miner.OutputBuffer}");
-                    
-                    if (miner.OutputBuffer > 0)
-                    {
-                        int taken = miner.TakeOutput(1);
-                        if (taken > 0)
-                        {
-                            AddItem(miner.ResourceType, taken);
-                            Console.WriteLine($"[Belt] Erfolgreich {taken}x {miner.ResourceType} von Miner genommen");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[Belt] Miner Buffer ist leer");
-                    }
-                }
-                else if (InputMachine is FurnaceMachine furnace)
-                {
-                    Console.WriteLine($"[Belt] Furnace hat OutputBuffer: {furnace.OutputBuffer}");
-                    
-                    if (furnace.OutputBuffer > 0)
-                    {
-                        int taken = furnace.TakeOutput(1);
-                        if (taken > 0)
-                        {
-                            AddItem(furnace.OutputResource, taken);
-                            Console.WriteLine($"[Belt] Erfolgreich {taken}x {furnace.OutputResource} von Furnace genommen");
-                        }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[Belt] Furnace Buffer ist leer");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine($"[Belt] Input ist weder Miner noch Furnace: {InputMachine.GetType().Name}");
-                }
+                // Prüfe ob genug Platz ist
+                if (minProgress < normalizedSpacing)
+                    return false;
             }
-            else
+            
+            var newItem = new ConveyorItem(resourceType, amount);
+            newItem.Progress = startProgress;
+            items.Add(newItem);
+            
+            return true;
+        }
+        
+        private void TryPickupFromInput()
+        {
+            if (InputMachine == null) return;
+            if (items.Count >= MaxItemsOnBelt) return;
+            
+            if (InputMachine is MiningMachine miner && miner.OutputBuffer > 0)
             {
-                if (InputMachine == null)
-                    Console.WriteLine($"[Belt @ {Position}] Kein Input verbunden!");
-                if (items.Count >= MaxItems)
-                    Console.WriteLine($"[Belt @ {Position}] Belt ist voll!");
+                int taken = miner.TakeOutput(1);
+                if (taken > 0)
+                    AddItem(miner.ResourceType, taken);
             }
+            else if (InputMachine is FurnaceMachine furnace && furnace.OutputBuffer > 0)
+            {
+                int taken = furnace.TakeOutput(1);
+                if (taken > 0)
+                    AddItem(furnace.OutputResource, taken);
+            }
+            else if (InputMachine is ConveyorBelt inputBelt && inputBelt.items.Count > 0)
+            {
+                var lastItem = inputBelt.items[inputBelt.items.Count - 1];
+                if (lastItem.Progress >= 0.95f)
+                {
+                    if (AddItem(lastItem.ResourceType, lastItem.Amount))
+                        inputBelt.items.RemoveAt(inputBelt.items.Count - 1);
+                }
+            }
+        }
+        
+        private bool TryTransferToOutput(ConveyorItem item)
+        {
+            if (OutputMachine == null)
+                return false;
+            
+            if (OutputMachine is FurnaceMachine furnace)
+                return furnace.AddInput(item.ResourceType, item.Amount);
+            
+            if (OutputMachine is ConveyorBelt outputBelt)
+                return outputBelt.AddItem(item.ResourceType, item.Amount);
+            
+            return false;
         }
         
         public override void Draw()
         {
-            Color bandColor = IsRunning ? new Color(60, 60, 60, 255) : Color.Gray;
-            Raylib.DrawModel(Model, Position, 1.0f, bandColor);
+            DrawBeltWithRotation();
+            DrawItems();
             
-            Vector3 arrowStart = Position + new Vector3(0, 0.6f, 0);
-            Vector3 arrowEnd = arrowStart + Direction * 0.4f;
-            Raylib.DrawLine3D(arrowStart, arrowEnd, Color.Yellow);
-            Raylib.DrawSphere(arrowEnd, 0.05f, Color.Yellow);
+            if (Data.GlobalData.ShowDebugInfo)
+                DrawConnections();
             
+            base.Draw();
+        }
+        
+        private void DrawBeltWithRotation()
+        {
+            Color beltColor = IsRunning ? new Color(50, 50, 50, 255) : Color.Gray;
+            if (items.Count > 0 && IsRunning)
+                beltColor = new Color(70, 70, 70, 255);
+            
+            float rotationAngle = 0f;
+            Vector3 rotationAxis = new Vector3(0, 1, 0);
+            
+            if (Direction.X > 0.5f) rotationAngle = 0f;
+            else if (Direction.X < -0.5f) rotationAngle = 180f;
+            else if (Direction.Z > 0.5f) rotationAngle = 90f;
+            else if (Direction.Z < -0.5f) rotationAngle = 270f;
+            
+            Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, beltColor);
+        }
+        
+        // ===== ITEMS ZEICHNEN - BIS ZUM RAND =====
+        private void DrawItems()
+        {
             foreach (var item in items)
             {
-                Vector3 itemPos = Position + Direction * (item.Progress - 0.5f) * 0.8f;
-                itemPos.Y += 0.7f;
-                Color itemColor = GetResourceColor(item.ResourceType);
-                Raylib.DrawCube(itemPos, 0.15f, 0.15f, 0.15f, itemColor);
+                // Progress 0.0 = linke Kante, 1.0 = rechte Kante
+                // Nutze RenderLength für physische Position
+                float relativePosition = (item.Progress - 0.2f) * RenderLength;
+                Vector3 itemPosition = Position + Direction * relativePosition;
+                itemPosition.Y += ItemHeight + 1;
+                
+                Resource? resource = ResourceRegistry.Get(item.ResourceType);
+                Color itemColor = resource?.Color ?? Color.White;
+                
+                float itemSize = 0.2f;
+                Raylib.DrawCube(itemPosition, itemSize, itemSize, itemSize, itemColor);
+                Raylib.DrawCubeWires(itemPosition, itemSize, itemSize, itemSize, 
+                    new Color(0, 0, 0, 100));
+                
+                Vector3 glowPos = itemPosition + new Vector3(0, itemSize * 0.3f, 0);
+                Raylib.DrawSphere(glowPos, itemSize * 0.15f, new Color(255, 255, 255, 100));
             }
         }
         
-        private Color GetResourceColor(string resourceType)
+        // ===== VERBINDUNGEN AN DEN KANTEN =====
+        private void DrawConnections()
         {
-            return resourceType switch
+            float sphereSize = 0.1f;
+            
+            // Input an der vorderen physischen Kante (nutzt RenderLength)
+            if (InputMachine != null)
             {
-                "Iron Ore" => new Color(139, 69, 19, 255),
-                "Iron Plate" => new Color(192, 192, 192, 255),
-                "Copper Ore" => new Color(184, 115, 51, 255),
-                "Copper Plate" => new Color(255, 140, 0, 255),
-                _ => Color.White
-            };
+                Vector3 inputPos = Position + Direction * (-1f * RenderLength);
+                inputPos.Y += ItemHeight + 1;
+                Raylib.DrawSphere(inputPos, sphereSize, new Color(0, 255, 0, 200));
+            }
+            
+            // Output an der hinteren physischen Kante (nutzt RenderLength)
+            if (OutputMachine != null)
+            {
+                Vector3 outputPos = Position + Direction * (1f * RenderLength);
+                outputPos.Y += ItemHeight + 1;
+                Raylib.DrawSphere(outputPos, sphereSize, new Color(0, 100, 255, 200));
+            }
+            
+            // Debug: Zeige Belt-Grenzen
+            if (Data.GlobalData.ShowDebugInfo)
+            {
+                // Logische Grenzen (gelb/rot) - für Debugging
+                Vector3 startPos = Position + Direction * (-1f * BeltLength);
+                startPos.Y += ItemHeight + 1f;
+                Raylib.DrawSphere(startPos, 0.05f, Color.Yellow);
+                
+                Vector3 endPos = Position + Direction * (1f * BeltLength);
+                endPos.Y += ItemHeight + 1f;
+                Raylib.DrawSphere(endPos, 0.05f, Color.Red);
+                
+                // Physische Grenzen (cyan/magenta) - wo Items tatsächlich sind
+                Vector3 renderStart = Position + Direction * (-1f * RenderLength);
+                renderStart.Y += ItemHeight + 1f;
+                Raylib.DrawSphere(renderStart, 0.03f, Color.DarkBlue);
+                
+                Vector3 renderEnd = Position + Direction * (1f * RenderLength);
+                renderEnd.Y += ItemHeight + 1f;
+                Raylib.DrawSphere(renderEnd, 0.03f, Color.Magenta);
+                
+                // Mitte
+                Vector3 midPos = Position;
+                midPos.Y += ItemHeight + 1f;
+                Raylib.DrawSphere(midPos, 0.03f, Color.White);
+            }
         }
         
         public override string GetDebugInfo()
         {
-            return base.GetDebugInfo() + $" | Items: {items.Count}/{MaxItems} | Dir: {Direction}";
+            string info = base.GetDebugInfo();
+            info += $" | Items: {items.Count}/{MaxItemsOnBelt}";
+            info += $" | Speed: {BeltSpeed:F1}";
+            info += $" | Spacing: {MinItemSpacing:F2}";
+            info += $" | Render: {RenderLength:F2}";
+            
+            if (InputMachine != null)
+                info += $" | In: {InputMachine.MachineType}";
+            if (OutputMachine != null)
+                info += $" | Out: {OutputMachine.MachineType}";
+            
+            if (items.Count > 0)
+            {
+                var firstItem = items[0];
+                string displayName = ResourceRegistry.GetDisplayName(firstItem.ResourceType);
+                info += $" | [{displayName}] Pos:{firstItem.Progress:F2}";
+            }
+            
+            return info;
         }
         
-        // ===== PROVIDER FÜR MASCHINEN-DEFINITIONEN =====
         public class Provider : IMachineProvider
         {
             public List<MachineDefinition> GetDefinitions(Model defaultModel)
             {
                 var definitions = new List<MachineDefinition>();
                 
-                var def = new MachineDefinition
+                var beltDef = new MachineDefinition
                 {
-                    Name = "Conveyor Belt →",
+                    Name = "Conveyor Belt",
                     MachineType = "ConveyorBelt",
                     Model = defaultModel,
-                    PreviewColor = new Color(60, 60, 60, 128),
+                    PreviewColor = new Color(100, 100, 100, 128),
                     Size = new Vector3(1, 1, 1),
                     YOffset = 0.5f,
                     PowerConsumption = 2f
                 };
                 
-                def.CreateMachineFunc = (pos) => new ConveyorBelt(pos, def.Model, new Vector3(1, 0, 0))
-                {
-                    PowerConsumption = 2f
-                };
-                
-                definitions.Add(def);
+                definitions.Add(beltDef);
                 
                 return definitions;
             }
+        }
+    }
+    
+    public static class MathHelper
+    {
+        public static float Lerp(float a, float b, float t)
+        {
+            return a + (b - a) * Math.Clamp(t, 0f, 1f);
         }
     }
 }

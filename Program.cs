@@ -1,9 +1,10 @@
 ﻿using Raylib_cs;
 using BeyondIndustry.Utils;
 using BeyondIndustry.Data;
-using BeyondIndustry.DebugView;
+using BeyondIndustry.UI;
 using BeyondIndustry.Debug;
 using BeyondIndustry.Factory;
+using BeyondIndustry.Factory.Resources;
 using System.Numerics;
 using System;
 using System.Collections.Generic;
@@ -53,6 +54,8 @@ namespace BeyondIndustry
 
             // ===== MASCHINEN-SYSTEM =====
             MachineRegistry.Initialize();
+            ResourceRegistry.Initialize();
+            ResourceRegistry.PrintAll();
             var modelMap = new Dictionary<string, Model>
             {
                 { "default", cubeModel },
@@ -102,9 +105,23 @@ namespace BeyondIndustry
                     // Preview
                     placementSystem.UpdatePreview(Raylib.GetMousePosition());
                     
-                    // Platzieren/Entfernen
+                    // ===== NEU: MACHINE BUTTON CLICKS ZUERST PRÜFEN =====
                     if (Raylib.IsMouseButtonPressed(MouseButton.Left))
-                        placementSystem.PlaceObject();
+                    {
+                        // Erst versuchen, einen Maschinen-Button zu klicken
+                        bool clickedButton = false;
+                        factoryManager.HandleMachineClicks();
+                        
+                        // Wenn kein Button geklickt wurde, dann platzieren
+                        // (HandleMachineClicks gibt implizit zurück ob was geklickt wurde)
+                        // Für bessere Kontrolle:
+                        if (!IsAnyButtonHovered(factoryManager))
+                        {
+                            placementSystem.PlaceObject();
+                        }
+                    }
+                    
+                    // Entfernen
                     if (Raylib.IsMouseButtonPressed(MouseButton.Right))
                         placementSystem.RemoveObject();
                 }
@@ -114,7 +131,7 @@ namespace BeyondIndustry
                 Raylib.ClearBackground(new Color(135, 206, 235, 255));
                 
                 Raylib.BeginMode3D(GlobalData.camera);
-                    UI.Draw3DElements();
+                    UI.MainUI.Draw3DElements();
                     Raylib.DrawSphere(lightPosition, 0.3f, Color.Yellow);
                     
                     Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
@@ -126,14 +143,26 @@ namespace BeyondIndustry
 
                 // ===== UI =====
                 Raylib.DrawText("WASD: Move | Space/Shift: Up/Down | Arrows: Rotate/Zoom", 10, 10, 18, Color.Black);
-                Raylib.DrawText($"TAB/1-{machineDefinitions.Count}: Select | R: Rotate Belt | LClick: Place | RClick: Remove", 10, 32, 18, Color.Black);
+                Raylib.DrawText($"TAB/1-{machineDefinitions.Count}: Select | R: Rotate Belt | LClick: Place/Toggle | RClick: Remove", 10, 32, 18, Color.Black);
                 Raylib.DrawText(placementSystem.GetSelectedInfo(), 10, 54, 18, Color.DarkGreen);
+                Raylib.DrawText("Klicke auf grüne/rote Buttons um Maschinen an/aus zu schalten", 10, 76, 16, Color.DarkBlue);
                 
-                factoryManager.DrawDebugInfo(90);
-                UI.DebugDataUI();
+                factoryManager.DrawDebugInfo(110);
+                UI.MainUI.DebugDataUI();
                 DebugConsole.Draw();
 
                 Raylib.EndDrawing();
+            }
+
+            // ===== HELPER FUNKTION =====
+            static bool IsAnyButtonHovered(FactoryManager manager)
+            {
+                foreach (var machine in manager.GetAllMachines())
+                {
+                    if (machine.IsButtonHovered())
+                        return true;
+                }
+                return false;
             }
 
             // Cleanup

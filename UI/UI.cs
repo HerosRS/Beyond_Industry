@@ -4,9 +4,9 @@ using BeyondIndustry.Utils;
 using BeyondIndustry.Debug;
 using Raylib_cs;
 
-namespace BeyondIndustry.DebugView
+namespace BeyondIndustry.UI
 {
-    public class UI
+    public class MainUI
     {
         // Diese Methode ist für 2D UI NACH EndMode3D()
         public static void DebugDataUI()

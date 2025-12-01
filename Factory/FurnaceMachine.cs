@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
+using BeyondIndustry.Factory.Resources;
 
 namespace BeyondIndustry.Factory
 {
@@ -67,9 +68,31 @@ namespace BeyondIndustry.Factory
         public override void Draw()
         {
             Color drawColor = IsRunning && InputBuffer >= InputPerCycle ? Color.Orange : 
-                             IsRunning ? Color.Yellow : 
-                             Color.Gray;
+                            IsRunning ? Color.Yellow : 
+                            Color.Gray;
+            
             Raylib.DrawModel(Model, Position, 1.0f, drawColor);
+            
+            // Input-Anzeige (links)
+            if (InputBuffer > 0)
+            {
+                Color inputColor = ResourceRegistry.GetColor(InputResource);
+                Vector3 inputPos = Position + new Vector3(-0.7f, 1.0f, 0);
+                Raylib.DrawCube(inputPos, 0.2f, 0.2f, 0.2f, inputColor);
+                Raylib.DrawText($"{InputBuffer}", 
+                    (int)(inputPos.X * 50), (int)(inputPos.Y * 50), 12, Color.White);
+            }
+            
+            // Output-Anzeige (rechts)
+            if (OutputBuffer > 0)
+            {
+                Color outputColor = ResourceRegistry.GetColor(OutputResource);
+                Vector3 outputPos = Position + new Vector3(0.7f, 1.0f, 0);
+                Raylib.DrawCube(outputPos, 0.2f, 0.2f, 0.2f, outputColor);
+                Raylib.DrawText($"{OutputBuffer}", 
+                    (int)(outputPos.X * 50), (int)(outputPos.Y * 50), 12, Color.White);
+            }
+            
             base.Draw();
         }
         
