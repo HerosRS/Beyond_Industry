@@ -22,6 +22,9 @@ namespace BeyondIndustry.Factory
         public float PowerConsumption { get; set; }
         public int BufferSize { get; set; }
         
+        // ===== NEU: CUSTOM DATA FÜR ZUSÄTZLICHE INFORMATIONEN =====
+        public Dictionary<string, object>? CustomData { get; set; }
+        
         // ===== FACTORY-METHODE FÜR ERSTELLUNG =====
         public System.Func<Vector3, FactoryMachine>? CreateMachineFunc { get; set; }
         
@@ -33,6 +36,7 @@ namespace BeyondIndustry.Factory
             ProductionTime = 1.0f;
             PowerConsumption = 10f;
             BufferSize = 10;
+            CustomData = null;  // Optional
         }
         
         // ===== ERSTELLE MASCHINE =====
@@ -68,23 +72,58 @@ namespace BeyondIndustry.Factory
                 // Hole Definitionen von diesem Provider
                 List<MachineDefinition> definitions = provider.GetDefinitions(models.GetValueOrDefault("default"));
                 
-                // Weise Modelle zu basierend auf MachineType
+                // Weise Modelle zu basierend auf MachineType und CustomData
                 foreach (var def in definitions)
                 {
-                    // Versuche ein spezifisches Modell zu finden, sonst Default
-                    if (models.ContainsKey(def.MachineType))
+                    // ===== NEU: SPEZIELLE BEHANDLUNG FÜR BELT-TYPEN =====
+                    if (def.MachineType == "ConveyorBelt" && def.CustomData != null)
                     {
-                        def.Model = models[def.MachineType];
+                        if (def.CustomData.ContainsKey("BeltType"))
+                        {
+                            BeltType type = (BeltType)def.CustomData["BeltType"];
+                            
+                            // Versuche spezifisches Belt-Model zu laden
+                            string modelKey = $"ConveyorBelt_{type}";
+                            if (models.ContainsKey(modelKey))
+                            {
+                                def.Model = models[modelKey];
+                                System.Console.WriteLine($"[MachineRegistry] Loaded model for {modelKey}");
+                            }
+                            else if (models.ContainsKey("ConveyorBelt"))
+                            {
+                                def.Model = models["ConveyorBelt"];
+                            }
+                            else if (models.ContainsKey("default"))
+                            {
+                                def.Model = models["default"];
+                            }
+                        }
                     }
-                    else if (models.ContainsKey("default"))
+                    else
                     {
-                        def.Model = models["default"];
+                        // ===== STANDARD: VERSUCHE SPEZIFISCHES MODELL ZU FINDEN =====
+                        // 1. Versuche mit vollständigem Namen
+                        if (models.ContainsKey(def.Name))
+                        {
+                            def.Model = models[def.Name];
+                        }
+                        // 2. Versuche mit MachineType
+                        else if (models.ContainsKey(def.MachineType))
+                        {
+                            def.Model = models[def.MachineType];
+                        }
+                        // 3. Fallback zu Default
+                        else if (models.ContainsKey("default"))
+                        {
+                            def.Model = models["default"];
+                        }
                     }
                 }
                 
                 allDefinitions.AddRange(definitions);
             }
             
+            System.Console.WriteLine($"[MachineRegistry] {allDefinitions.Count} Maschinen-Definitionen geladen");
             return allDefinitions;
         }
         
@@ -99,6 +138,8 @@ namespace BeyondIndustry.Factory
             RegisterProvider(new FurnaceMachine.Provider());
             RegisterProvider(new ConveyorBelt.Provider());
             // Weitere Maschinen hier hinzufügen...
+            
+            System.Console.WriteLine($"[MachineRegistry] {providers.Count} Provider registriert");
         }
     }
 }

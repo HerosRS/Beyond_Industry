@@ -19,7 +19,7 @@ namespace BeyondIndustry.Factory
         public bool IsManuallyEnabled { get; set; } = true;  // Maschine manuell ein/aus
         
         // NEU: Interaktiver Button
-        private Vector3 buttonOffset = new Vector3(0.6f, 0.5f, 0);  // Rechts an der Seite
+        private Vector3 buttonOffset = new Vector3(0.5f, 0.5f, 1);  // Rechts an der Seite
         private float buttonSize = 0.3f;
         
         public FactoryMachine(Vector3 position, Model model)

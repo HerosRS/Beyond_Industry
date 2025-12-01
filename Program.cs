@@ -38,6 +38,8 @@ namespace BeyondIndustry
             Model IronDrillModel = Raylib.LoadModel(@"..\..\..\Resources\Maschiene.obj");
             Model CopperDrillModel = Raylib.LoadModel(@"..\..\..\Resources\Maschiene.obj");
             Model BeltModel = Raylib.LoadModel(@"..\..\..\Resources\Belt.obj");
+            Model BeltCurveLeftModel = Raylib.LoadModel(@"..\..\..\Resources\belt_curve_left.obj");
+            Model BeltCurveRightModel = Raylib.LoadModel(@"..\..\..\Resources\belt_curve_right.obj");
             Model cubeModel = Raylib.LoadModelFromMesh(Raylib.GenMeshCube(1.0f, 1.0f, 1.0f));
 
             // Shader anwenden
@@ -62,7 +64,12 @@ namespace BeyondIndustry
                 { "MiningDrill_Iron", IronDrillModel },
                 { "MiningDrill_Copper", CopperDrillModel },
                 { "Iron_Furnace", Iron_Furnace },
-                { "ConveyorBelt", BeltModel }
+                { "ConveyorBelt", BeltModel },
+                //{ "ConveyorBelt_Straight", BeltStraightModel },
+                { "ConveyorBelt_CurveLeft", BeltCurveLeftModel },
+                { "ConveyorBelt_CurveRight", BeltCurveRightModel },
+                //{ "ConveyorBelt_RampUp", BeltRampUpModel },
+                //{ "ConveyorBelt_RampDown", BeltRampDownModel },
             };
             List<MachineDefinition> machineDefinitions = MachineRegistry.LoadAllDefinitions(modelMap);
          
@@ -173,6 +180,8 @@ namespace BeyondIndustry
             Raylib.UnloadModel(IronDrillModel);
             Raylib.UnloadModel(CopperDrillModel);
             Raylib.UnloadModel(BeltModel);
+            Raylib.UnloadModel(BeltCurveLeftModel);
+            Raylib.UnloadModel(BeltCurveRightModel);
             Raylib.UnloadModel(cubeModel);
             Raylib.CloseWindow();
         }

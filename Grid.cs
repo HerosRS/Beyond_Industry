@@ -9,7 +9,7 @@ namespace BeyondIndustry.Utils
         // Grid-Daten (2D Array bleibt - das ist deine Spiel-Logik!)
         private int[,] grid;
         
-        public Grid(int width = 100, int height = 100)
+        public Grid(int width = 1000, int height = 1000)
         {
             grid = new int[width, height];
         }

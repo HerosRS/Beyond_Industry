@@ -159,7 +159,20 @@ namespace BeyondIndustry
                 // Spezielle Behandlung für Conveyor Belts
                 if (currentDef.MachineType == "ConveyorBelt")
                 {
-                    machine = new ConveyorBelt(PreviewPosition, currentDef.Model, BeltDirections[BeltRotation])
+                    // Hole Belt-Typ aus CustomData
+                    BeltType type = BeltType.Straight;
+                    if (currentDef.CustomData != null && currentDef.CustomData.ContainsKey("BeltType"))
+                    {
+                        type = (BeltType)currentDef.CustomData["BeltType"];
+                    }
+                    
+                    // Erstelle Belt mit richtigem Typ
+                    machine = new ConveyorBelt(
+                        PreviewPosition, 
+                        currentDef.Model, 
+                        BeltDirections[BeltRotation],
+                        type
+                    )
                     {
                         PowerConsumption = currentDef.PowerConsumption
                     };
