@@ -44,7 +44,7 @@ namespace BeyondIndustry.Factory
         // ===== EIGENSCHAFTEN =====
         public BeltType Type { get; private set; }
         public Vector3 Direction { get; private set; }
-        public Vector3 SecondaryDirection { get; private set; }  // Für Kurven/Merger/Splitter
+        public Vector3 SecondaryDirection { get; private set; }
         public float BeltSpeed { get; set; } = 1.0f;
         public int MaxItemsOnBelt { get; set; } = 6;
         public float ItemHeight { get; set; } = 0.3f;
@@ -53,6 +53,9 @@ namespace BeyondIndustry.Factory
         public float EndPoint { get; set; } = 1.5f;
         public float MinItemSpacing { get; set; } = 0.33f;
         public float BeltLength { get; set; } = 1.0f;
+        
+        // ===== NEU: EINSTELLBARER KURVEN-RADIUS =====
+        public float CurveRadius { get; set; } = 0.5f;
         
         private List<ConveyorItem> items = new List<ConveyorItem>();
         private float updateAccumulator = 0f;
@@ -65,24 +68,20 @@ namespace BeyondIndustry.Factory
             Type = type;
             Direction = Vector3.Normalize(direction);
             
-            // Berechne Secondary Direction für Kurven
             CalculateSecondaryDirection();
             
             ProductionCycleTime = 0.3f;
             PowerConsumption = 2f;
         }
         
-        // ===== BERECHNE SECONDARY DIRECTION =====
         private void CalculateSecondaryDirection()
         {
             if (Type == BeltType.CurveLeft)
             {
-                // Drehe Direction 90° nach links (gegen Uhrzeigersinn)
                 SecondaryDirection = new Vector3(-Direction.Z, 0, Direction.X);
             }
             else if (Type == BeltType.CurveRight)
             {
-                // Drehe Direction 90° nach rechts (im Uhrzeigersinn)
                 SecondaryDirection = new Vector3(Direction.Z, 0, -Direction.X);
             }
             else
@@ -123,48 +122,78 @@ namespace BeyondIndustry.Factory
             }
         }
         
+        // ===== LIVE DEBUG INPUT (ERWEITERT) =====
         private void HandleDebugInput()
         {
             if (!IsNearMouse()) return;
             
             float adjustSpeed = 0.01f;
             
+            // Numpad 7/4 - SpawnPoint anpassen
             if (Raylib.IsKeyDown(KeyboardKey.Kp7))
             {
                 SpawnPoint += adjustSpeed;
                 if (SpawnPoint > EndPoint - MinItemSpacing) SpawnPoint = EndPoint - MinItemSpacing;
+                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
             }
             if (Raylib.IsKeyDown(KeyboardKey.Kp4))
             {
                 SpawnPoint -= adjustSpeed;
+                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
             }
             
+            // Numpad 9/6 - EndPoint anpassen
             if (Raylib.IsKeyDown(KeyboardKey.Kp9))
             {
                 EndPoint += adjustSpeed;
+                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
             }
             if (Raylib.IsKeyDown(KeyboardKey.Kp6))
             {
                 EndPoint -= adjustSpeed;
                 if (EndPoint < SpawnPoint + MinItemSpacing) EndPoint = SpawnPoint + MinItemSpacing;
+                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
             }
             
+            // Numpad 8/5 - MinItemSpacing anpassen
             if (Raylib.IsKeyDown(KeyboardKey.Kp8))
             {
                 MinItemSpacing += adjustSpeed;
                 if (MinItemSpacing > 1.0f) MinItemSpacing = 1.0f;
+                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
             }
             if (Raylib.IsKeyDown(KeyboardKey.Kp5))
             {
                 MinItemSpacing -= adjustSpeed;
                 if (MinItemSpacing < 0.05f) MinItemSpacing = 0.05f;
+                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
             }
             
+            // ===== NEU: Numpad 1/2 - KURVEN-RADIUS anpassen (nur für Kurven) =====
+            if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+            {
+                if (Raylib.IsKeyDown(KeyboardKey.Kp1))
+                {
+                    CurveRadius += adjustSpeed * 2;
+                    if (CurveRadius > 2.0f) CurveRadius = 2.0f;
+                    Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
+                }
+                if (Raylib.IsKeyDown(KeyboardKey.Kp2))
+                {
+                    CurveRadius -= adjustSpeed * 2;
+                    if (CurveRadius < 0.1f) CurveRadius = 0.1f;
+                    Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
+                }
+            }
+            
+            // Numpad 0 - Reset zu optimalen Werten
             if (Raylib.IsKeyPressed(KeyboardKey.Kp0))
             {
                 SpawnPoint = -0.5f;
                 EndPoint = 1.5f;
                 MinItemSpacing = 0.33f;
+                CurveRadius = 0.5f;
+                Console.WriteLine($"[Belt] Reset zu optimalen Werten");
             }
         }
         
@@ -303,13 +332,11 @@ namespace BeyondIndustry.Factory
             base.Draw();
         }
         
-        // ===== MODEL ZEICHNEN =====
         private void DrawBeltModel()
         {
             float rotationAngle = CalculateRotationAngle();
             Vector3 rotationAxis = new Vector3(0, 1, 0);
             
-            // Debug
             if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
             {
                 Vector3 arrowStart = Position;
@@ -319,7 +346,6 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawLine3D(arrowStart, arrowEnd, Color.Orange);
                 Raylib.DrawSphere(arrowEnd, 0.05f, Color.Orange);
                 
-                // Für Kurven: Zeige auch Secondary Direction
                 if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
                 {
                     Vector3 secondaryArrowEnd = arrowStart + SecondaryDirection * 0.5f;
@@ -332,7 +358,6 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawText($"Rot: {rotationAngle:F0}°", (int)screenPos.X - 30, (int)screenPos.Y - 60, 12, Color.Orange);
             }
             
-            // Zeichne Model OHNE Farbänderung
             Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, Color.White);
         }
         
@@ -343,7 +368,6 @@ namespace BeyondIndustry.Factory
             return baseAngle + modelOffset;
         }
         
-        // ===== ITEMS ZEICHNEN =====
         private void DrawItems()
         {
             foreach (var item in items)
@@ -363,7 +387,6 @@ namespace BeyondIndustry.Factory
             }
         }
         
-        // ===== ITEM POSITION BERECHNEN (UNTERSCHIEDLICH JE NACH TYP!) =====
         protected virtual Vector3 CalculateItemPosition(float progress)
         {
             Vector3 itemPosition;
@@ -395,7 +418,6 @@ namespace BeyondIndustry.Factory
             return itemPosition;
         }
         
-        // ===== GERADE POSITION =====
         private Vector3 CalculateStraightPosition(float progress)
         {
             float normalizedPosition = (progress - 0.5f);
@@ -404,33 +426,28 @@ namespace BeyondIndustry.Factory
             return pos;
         }
         
-        // ===== KURVEN POSITION (90° ARC) =====
+        // ===== KURVEN POSITION (MIT EINSTELLBAREM RADIUS) =====
         private Vector3 CalculateCurvePosition(float progress)
         {
-            // Progress 0.0 bis 1.0 wird zu 0° bis 90°
             float angle = progress * 90f * (float)(Math.PI / 180.0);
             
-            // Kurvenradius
-            float radius = BeltLength * 1f; // <-- Anpassen falls nötig 0.5
+            // NUTZE EINSTELLBAREN RADIUS!
+            float radius = CurveRadius;
             
-            // Berechne Position auf Kreisbogen
             Vector3 center = Position;
             
             float x, z;
             if (Type == BeltType.CurveLeft)
             {
-                // Linke Kurve (gegen Uhrzeigersinn)
                 x = radius * (float)Math.Sin(angle);
                 z = radius * (1f - (float)Math.Cos(angle));
             }
             else
             {
-                // Rechte Kurve (im Uhrzeigersinn)
                 x = radius * (float)Math.Sin(angle);
                 z = -radius * (1f - (float)Math.Cos(angle));
             }
             
-            // Transformiere relativ zur Direction
             Vector3 localPos = new Vector3(x, 0, z);
             Vector3 worldPos = TransformToWorld(localPos, center, Direction);
             worldPos.Y += ItemHeight + 1;
@@ -438,14 +455,12 @@ namespace BeyondIndustry.Factory
             return worldPos;
         }
         
-        // ===== RAMPEN POSITION =====
         private Vector3 CalculateRampPosition(float progress, bool goingUp)
         {
             float normalizedPosition = (progress - 0.5f);
             Vector3 pos = Position + Direction * normalizedPosition * BeltLength;
             
-            // Höhenänderung über die Länge des Belts
-            float heightChange = 1.0f;  // 1 Block hoch/runter
+            float heightChange = 1.0f;
             float currentHeight = progress * heightChange;
             
             if (!goingUp)
@@ -455,13 +470,10 @@ namespace BeyondIndustry.Factory
             return pos;
         }
         
-        // ===== HELPER: TRANSFORMIERE LOKALE POSITION ZU WELT-KOORDINATEN =====
         private Vector3 TransformToWorld(Vector3 localPos, Vector3 center, Vector3 forward)
         {
-            // Berechne Right-Vector (senkrecht zu Forward)
             Vector3 right = new Vector3(-forward.Z, 0, forward.X);
             
-            // Transformiere
             Vector3 worldPos = center + 
                                right * localPos.X + 
                                new Vector3(0, localPos.Y, 0) + 
@@ -470,7 +482,7 @@ namespace BeyondIndustry.Factory
             return worldPos;
         }
         
-        // ===== VERBINDUNGEN =====
+        // ===== VERBINDUNGEN (ERWEITERT) =====
         private void DrawConnections()
         {
             float sphereSize = 0.1f;
@@ -500,7 +512,37 @@ namespace BeyondIndustry.Factory
                 y += 15;
                 Raylib.DrawText("Numpad 8/5: Spacing", (int)screenPos.X - 80, y, 12, Color.White);
                 y += 15;
-                Raylib.DrawText($"Type: {Type}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+                
+                // ===== NEU: ZEIGE RADIUS-CONTROLS FÜR KURVEN =====
+                if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+                {
+                    Raylib.DrawText("Numpad 1/2: Curve Radius", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+                    y += 15;
+                }
+                
+                Raylib.DrawText("Numpad 0: Reset", (int)screenPos.X - 80, y, 12, Color.White);
+                y += 20;
+                Raylib.DrawText($"Spawn: {SpawnPoint:F2}", (int)screenPos.X - 80, y, 12, Color.Lime);
+                y += 15;
+                Raylib.DrawText($"End: {EndPoint:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+                y += 15;
+                Raylib.DrawText($"Spacing: {MinItemSpacing:F2}", (int)screenPos.X - 80, y, 12, Color.White);
+                y += 15;
+                
+                // ===== NEU: ZEIGE RADIUS FÜR KURVEN =====
+                if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+                {
+                    Raylib.DrawText($"Radius: {CurveRadius:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+                    y += 15;
+                    
+                    // ===== BONUS: VISUALISIERE DEN RADIUS =====
+                    Vector3 centerPos = Position;
+                    centerPos.Y += ItemHeight + 1.3f;
+                    
+                    Vector3 radiusEnd = centerPos + Direction * CurveRadius;
+                    Raylib.DrawLine3D(centerPos, radiusEnd, Color.SkyBlue);
+                    Raylib.DrawSphere(radiusEnd, 0.05f, Color.SkyBlue);
+                }
             }
         }
         
@@ -511,6 +553,12 @@ namespace BeyondIndustry.Factory
             info += $" | Items: {items.Count}/{MaxItemsOnBelt}";
             info += $" | Speed: {BeltSpeed:F1}";
             
+            // ===== NEU: ZEIGE RADIUS FÜR KURVEN =====
+            if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+            {
+                info += $" | Radius: {CurveRadius:F2}";
+            }
+            
             if (InputMachine != null)
                 info += $" | In";
             if (OutputMachine != null)
@@ -519,49 +567,43 @@ namespace BeyondIndustry.Factory
             return info;
         }
         
-        // ===== PROVIDER =====
         public class Provider : IMachineProvider
         {
             public List<MachineDefinition> GetDefinitions(Model defaultModel)
             {
                 var definitions = new List<MachineDefinition>();
                 
-                // ===== GERADES BELT =====
                 definitions.Add(CreateBeltDefinition(
                     "Conveyor Belt (Straight)",
-                    "Resources/belt_straight.glb",
+                    "Resources/Models/belt_straight.glb",
                     BeltType.Straight,
                     defaultModel
                 ));
                 
-                // ===== KURVE LINKS =====
                 definitions.Add(CreateBeltDefinition(
                     "Conveyor Belt (Curve Left)",
-                    "Resources/belt_curve_left.glb",
+                    "Resources/Models/belt_curve_left.glb",
                     BeltType.CurveLeft,
                     defaultModel
                 ));
                 
-                // ===== KURVE RECHTS =====
                 definitions.Add(CreateBeltDefinition(
                     "Conveyor Belt (Curve Right)",
-                    "Resources/belt_curve_right.glb",
+                    "Resources/Models/belt_curve_right.glb",
                     BeltType.CurveRight,
                     defaultModel
                 ));
                 
-                // ===== RAMPE HOCH =====
                 definitions.Add(CreateBeltDefinition(
                     "Conveyor Belt (Ramp Up)",
-                    "Resources/belt_ramp_up.glb",
+                    "Resources/Models/belt_ramp_up.glb",
                     BeltType.RampUp,
                     defaultModel
                 ));
                 
-                // ===== RAMPE RUNTER =====
                 definitions.Add(CreateBeltDefinition(
                     "Conveyor Belt (Ramp Down)",
-                    "Resources/belt_ramp_down.glb",
+                    "Resources/Models/belt_ramp_down.glb",
                     BeltType.RampDown,
                     defaultModel
                 ));
@@ -569,7 +611,6 @@ namespace BeyondIndustry.Factory
                 return definitions;
             }
             
-            // ===== HELPER: ERSTELLE BELT DEFINITION =====
             private MachineDefinition CreateBeltDefinition(
                 string name, 
                 string modelPath, 
@@ -594,7 +635,6 @@ namespace BeyondIndustry.Factory
                 };
             }
             
-            // ===== HELPER: LADE MODEL SICHER =====
             private Model LoadModelSafe(string path, Model fallback)
             {
                 if (System.IO.File.Exists(path))

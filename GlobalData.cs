@@ -11,8 +11,19 @@ namespace BeyondIndustry.Data
         public static int CELL_SIZE = 2;
         
         // ===== CAMERA =====
-        public static Camera3D camera = new Camera3D();
-        
+         public static Camera3D camera = new Camera3D
+        {
+            Position = new Vector3(5.0f, 5.0f, 5.0f),
+            Target = new Vector3(0.0f, 0.0f, 0.0f),
+            Up = new Vector3(0.0f, 1.0f, 0.0f),
+            FovY = 45.0f,
+            Projection = CameraProjection.Perspective
+        };
+        public static void UpdateScreenSize()
+        {
+            SCREEN_WIDTH = Raylib.GetScreenWidth();
+            SCREEN_HEIGHT = Raylib.GetScreenHeight();
+        }
         // ===== DEBUG FLAGS =====
         public static bool ShowDebugInfo = true;           // Master Debug Toggle
         public static bool ShowFPS = false;                // FPS Counter
