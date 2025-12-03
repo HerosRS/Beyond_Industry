@@ -337,6 +337,7 @@ namespace BeyondIndustry.Factory
             float rotationAngle = CalculateRotationAngle();
             Vector3 rotationAxis = new Vector3(0, 1, 0);
             
+            // Debug
             if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
             {
                 Vector3 arrowStart = Position;
@@ -358,9 +359,39 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawText($"Rot: {rotationAngle:F0}°", (int)screenPos.X - 30, (int)screenPos.Y - 60, 12, Color.Orange);
             }
             
+            // Zeichne Model (jetzt mit richtigen Models!)
             Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, Color.White);
+            
+            // ===== ZUSÄTZLICHE VISUELLE PFAD-MARKER FÜR KURVEN =====
+            if ((Type == BeltType.CurveLeft || Type == BeltType.CurveRight) && Data.GlobalData.ShowDebugInfo)
+            {
+                DrawCurvePath();
+            }
         }
         
+        // ===== NEU: ZEICHNE KURVEN-PFAD (OPTIONAL, NUR IM DEBUG) =====
+        private void DrawCurvePath()
+        {
+            int segments = 12;
+            for (int i = 0; i < segments; i++)
+            {
+                float t1 = (float)i / segments;
+                float t2 = (float)(i + 1) / segments;
+                
+                Vector3 pos1 = CalculateCurvePosition(t1);
+                Vector3 pos2 = CalculateCurvePosition(t2);
+                
+                pos1.Y = Position.Y + 0.6f;  // Über dem Belt
+                pos2.Y = Position.Y + 0.6f;
+                
+                Color pathColor = Type == BeltType.CurveLeft ? 
+                    new Color(255, 100, 100, 180) : 
+                    new Color(100, 255, 100, 180);
+                
+                Raylib.DrawLine3D(pos1, pos2, pathColor);
+                Raylib.DrawSphere(pos1, 0.03f, pathColor);
+            }
+        }
         private float CalculateRotationAngle()
         {
             float baseAngle = (float)(Math.Atan2(Direction.X, Direction.Z) * (180.0 / Math.PI));

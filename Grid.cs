@@ -1,82 +1,128 @@
 using System.Numerics;
-using BeyondIndustry.Data;
 using Raylib_cs;
+using BeyondIndustry.Data;
 
 namespace BeyondIndustry.Utils
 {
     public class Grid
     {
-        // Grid-Daten (2D Array bleibt - das ist deine Spiel-Logik!)
-        private int[,] grid;
+        public int Size { get; set; } = 100;
+        public float CellSize { get; set; } = 1.0f;
         
-        public Grid(int width = 1000, int height = 1000)
+        public void Draw()
         {
-            grid = new int[width, height];
+            // Nur zeichnen wenn aktiviert
+            if (!GlobalData.ShowGrid) return;
+            
+            int halfSize = Size / 2;
+            
+            // LOD basierend auf Kamera-Höhe
+            float camHeight = GlobalData.camera.Position.Y;
+            int lineStep = 1;
+            if (camHeight > 20f) lineStep = 2;
+            if (camHeight > 40f) lineStep = 5;
+            if (camHeight > 80f) lineStep = 10;
+            
+            // Horizontale Linien (entlang Z-Achse)
+            for (int i = -halfSize; i <= halfSize; i += lineStep)
+            {
+                float x = i * CellSize;
+                Vector3 start = new Vector3(x, 0, -halfSize * CellSize);
+                Vector3 end = new Vector3(x, 0, halfSize * CellSize);
+                
+                Color lineColor = GlobalColor.GRID_MAIN;
+                if (i == 0)
+                {
+                    lineColor = GlobalColor.GRID_SUB;  // X-Achse
+                }
+                else if (i % 10 == 0)
+                {
+                    lineColor = new Color(120, 120, 120, 120);
+                }
+                
+                Raylib.DrawLine3D(start, end, lineColor);
+            }
+            
+            // Vertikale Linien (entlang X-Achse)
+            for (int i = -halfSize; i <= halfSize; i += lineStep)
+            {
+                float z = i * CellSize;
+                Vector3 start = new Vector3(-halfSize * CellSize, 0, z);
+                Vector3 end = new Vector3(halfSize * CellSize, 0, z);
+                
+                Color lineColor = GlobalColor.GRID_MAIN;
+                if (i == 0)
+                {
+                    lineColor = GlobalColor.GRID_SUB;  // Z-Achse
+                }
+                else if (i % 10 == 0)
+                {
+                    lineColor = new Color(120, 120, 120, 120);
+                }
+                
+                Raylib.DrawLine3D(start, end, lineColor);
+            }
+            
+            // Koordinaten-Marker im Debug-Modus
+            if (GlobalData.ShowDebugInfo)
+            {
+                DrawCoordinateMarkers(halfSize, lineStep);
+            }
         }
         
-        // Neue 3D-Methode: Maus zu 3D-Grid mit Raycast
-        public Vector2 GetMousePositionIn3DGrid()
+        private void DrawCoordinateMarkers(int halfSize, int step)
         {
-            Vector2 mousePos = Raylib.GetMousePosition();
-            Ray ray = Raylib.GetScreenToWorldRay(mousePos, GlobalData.camera);
-            
-            // Raycast auf Y=0 Ebene (Boden)
-            if (ray.Direction.Y != 0) // Division durch 0 vermeiden
+            for (int x = -halfSize; x <= halfSize; x += step * 5)
             {
-                float t = -ray.Position.Y / ray.Direction.Y;
-                
-                // Nur wenn der Strahl nach unten geht (t > 0)
-                if (t > 0)
+                for (int z = -halfSize; z <= halfSize; z += step * 5)
                 {
-                    Vector3 hitPoint = ray.Position + ray.Direction * t;
-
-                    // Grid-Koordinaten berechnen
-                    int gridX = (int)(hitPoint.X / GlobalData.CELL_SIZE);
-                    int gridZ = (int)(hitPoint.Z / GlobalData.CELL_SIZE);
+                    if (x == 0 && z == 0) continue;
                     
-                    // Bounds checking
-                    if (gridX >= 0 && gridX < grid.GetLength(0) && 
-                        gridZ >= 0 && gridZ < grid.GetLength(1))
+                    Vector3 pos = new Vector3(x * CellSize, 0.1f, z * CellSize);
+                    Vector2 screenPos = Raylib.GetWorldToScreen(pos, GlobalData.camera);
+                    
+                    if (screenPos.X > 0 && screenPos.X < GlobalData.SCREEN_WIDTH &&
+                        screenPos.Y > 0 && screenPos.Y < GlobalData.SCREEN_HEIGHT)
                     {
-                        return new Vector2(gridX, gridZ);
+                        string label = $"{x},{z}";
+                        Raylib.DrawText(label, (int)screenPos.X, (int)screenPos.Y, 10, 
+                            GlobalColor.WithAlpha(GlobalColor.TEXT_COLOR, 100));
                     }
                 }
             }
-            
-            return new Vector2(-1, -1); // Ungültige Position
         }
-
-        // Grid-Zugriff Methoden
-        public int GetCell(int x, int z)
+        
+        public Vector2Int WorldToGrid(Vector3 worldPos)
         {
-            if (x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1))
-                return grid[x, z];
-            return -1;
+            int gridX = (int)MathF.Round(worldPos.X / CellSize);
+            int gridZ = (int)MathF.Round(worldPos.Z / CellSize);
+            return new Vector2Int(gridX, gridZ);
         }
-
-        public void SetCell(int x, int z, int value)
+        
+        public Vector3 GridToWorld(int gridX, int gridZ, float y = 0f)
         {
-            if (x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1))
-                grid[x, z] = value;
+            return new Vector3(gridX * CellSize, y, gridZ * CellSize);
         }
-
-        public bool IsValidPosition(int x, int z)
+        
+        public bool IsInBounds(int gridX, int gridZ)
         {
-            return x >= 0 && x < grid.GetLength(0) && z >= 0 && z < grid.GetLength(1);
+            int halfSize = Size / 2;
+            return gridX >= -halfSize && gridX <= halfSize &&
+                   gridZ >= -halfSize && gridZ <= halfSize;
         }
-
-        // 3D World Position von Grid-Koordinaten berechnen
-        public static Vector3 GridToWorld(int x, int z)
+    }
+    
+    public struct Vector2Int
+    {
+        public int X { get; set; }
+        public int Z { get; set; }
+        
+        public Vector2Int(int x, int z)
         {
-            return new Vector3(
-                x * GlobalData.CELL_SIZE + GlobalData.CELL_SIZE / 2,  // Zentriert
-                0, 
-                z * GlobalData.CELL_SIZE + GlobalData.CELL_SIZE / 2   // Zentriert
-            );
+            X = x;
+            Z = z;
         }
-
-        // Grid Größe
-        public int GetWidth() => grid.GetLength(0);
-        public int GetHeight() => grid.GetLength(1);
+        
+        public override string ToString() => $"({X}, {Z})";
     }
 }

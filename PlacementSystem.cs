@@ -27,7 +27,7 @@ namespace BeyondIndustry
     public class PlacementSystem
     {
         // Grid-Einstellungen
-        public int GridSize { get; set; } = 9;
+        public int GridSize { get; set; } = 100;
         public float CellSize { get; set; } = 1.0f;
         
         // Platzierte Objekte

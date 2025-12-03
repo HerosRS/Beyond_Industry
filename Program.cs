@@ -15,208 +15,340 @@ namespace BeyondIndustry
     {
         static void Main()
         {
-            // ===== FENSTER MIT RESIZE-SUPPORT =====
-            Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
-            Raylib.InitWindow(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT, "Beyond Industry");
-            Raylib.SetTargetFPS(60);
-
-            // ===== KAMERA =====
-            CameraController cameraController = new CameraController(0.1f, 0.8f);
-            GlobalData.camera = cameraController.Camera;
+            bool shouldRestart = true;
             
-            // ===== BELEUCHTUNG =====
-            Shader shader = Raylib.LoadShader(@"..\..\..\Resources\lighting.vs", @"..\..\..\Resources\lighting.fs");
-            Vector3 lightPosition = new Vector3(0.0f, 6.0f, 0.0f);
-            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightPos"),
-                new float[] { lightPosition.X, lightPosition.Y, lightPosition.Z }, ShaderUniformDataType.Vec3);
-            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightColor"),
-                new float[] { 1.0f, 1.0f, 1.0f, 1.0f }, ShaderUniformDataType.Vec4);
-            Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "ambient"),
-                new float[] { 0.5f, 0.5f, 0.5f, 1.0f }, ShaderUniformDataType.Vec4);
-
-            // ===== MODELLE LADEN =====
-            Model Wand = Raylib.LoadModel(@"..\..\..\Resources\Wand.obj");
-            Model Boden = Raylib.LoadModel(@"..\..\..\Resources\Boden.obj");
-            Model Iron_Furnace = Raylib.LoadModel(@"..\..\..\Resources\Iron_Furnace.obj");
-            Model IronDrillModel = Raylib.LoadModel(@"..\..\..\Resources\Maschiene.obj");
-            Model CopperDrillModel = Raylib.LoadModel(@"..\..\..\Resources\Maschiene.obj");
-            Model BeltModel = Raylib.LoadModel(@"..\..\..\Resources\Belt.obj");
-            Model cubeModel = Raylib.LoadModelFromMesh(Raylib.GenMeshCube(1.0f, 1.0f, 1.0f));
-
-            // Shader anwenden
-            unsafe
+            while (shouldRestart)
             {
-                Boden.Materials[0].Shader = shader;
-                Wand.Materials[0].Shader = shader;
-                cubeModel.Materials[0].Shader = shader;
-                IronDrillModel.Materials[0].Shader = shader;
-                CopperDrillModel.Materials[0].Shader = shader;
-                BeltModel.Materials[0].Shader = shader;
-                Iron_Furnace.Materials[0].Shader = shader;
-            }
-
-            // ===== MASCHINEN-SYSTEM =====
-            MachineRegistry.Initialize();
-            ResourceRegistry.Initialize();
-            ResourceRegistry.PrintAll();
-            
-            var modelMap = new Dictionary<string, Model>
-            {
-                { "default", cubeModel },
-                { "MiningDrill_Iron", IronDrillModel },
-                { "MiningDrill_Copper", CopperDrillModel },
-                { "Iron_Furnace", Iron_Furnace },
-                { "ConveyorBelt", BeltModel },
+                shouldRestart = RunGame();
                 
-                // Belt-Typen (nutze vorerst gleiches Model)
-                { "ConveyorBelt_Straight", BeltModel },
-                { "ConveyorBelt_CurveLeft", BeltModel },
-                { "ConveyorBelt_CurveRight", BeltModel },
-                { "ConveyorBelt_RampUp", BeltModel },
-                { "ConveyorBelt_RampDown", BeltModel },
-            };
-            
-            List<MachineDefinition> machineDefinitions = MachineRegistry.LoadAllDefinitions(modelMap);
-         
-            // ===== SYSTEME =====
-            Grid grid = new Grid();
-            FactoryManager factoryManager = new FactoryManager();
-            factoryManager.TotalPowerGeneration = 200f;
-            PlacementSystem placementSystem = new PlacementSystem(machineDefinitions, factoryManager, GlobalData.camera);
-            
-            // ===== NEU: BUILD MENU UI =====
-            BuildMenuUI buildMenu = new BuildMenuUI(machineDefinitions, placementSystem);
-            
-            while (!Raylib.WindowShouldClose())
-            {
-                // ===== FENSTER-RESIZE HANDLING =====
-                if (Raylib.IsWindowResized())
+                if (shouldRestart)
                 {
-                    GlobalData.UpdateScreenSize();
-                    buildMenu.UpdateLayout(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT);
-                    Console.WriteLine($"[Window] Resized to {GlobalData.SCREEN_WIDTH}x{GlobalData.SCREEN_HEIGHT}");
+                    Console.WriteLine("[Program] Restarting for hot reload...");
+                    System.Threading.Thread.Sleep(500);  // Kurze Pause
+                }
+            }
+        }
+        
+        static bool RunGame()
+        {
+            try
+            {
+                Raylib.SetConfigFlags(ConfigFlags.ResizableWindow | ConfigFlags.VSyncHint);
+                Raylib.InitWindow(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT, "Beyond Industry");
+                Raylib.SetTargetFPS(60);
+
+                Console.WriteLine("[Program] Window initialized");
+
+                CameraController cameraController = new CameraController();
+                cameraController.SetBounds(-50, 50, -50, 50);  // Grid-Bounds
+                
+
+                GlobalData.camera = cameraController.Camera;
+                
+                // ===== SHADER =====
+                Shader shader = default;
+                try
+                {
+                    string vsPath = @"..\..\..\Resources\lighting.vs";
+                    string fsPath = @"..\..\..\Resources\lighting.fs";
+                    
+                    shader = Raylib.LoadShader(vsPath, fsPath);
+                    
+                    // Watch shader files
+                    HotReloadSystem.WatchFile("shader_vs", vsPath);
+                    HotReloadSystem.WatchFile("shader_fs", fsPath);
+                    
+                    Console.WriteLine("[Program] Shader loaded with hot reload");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Program] WARNING: Could not load shader: {ex.Message}");
                 }
                 
-                // ===== UPDATE =====
-                DebugConsole.Update();
-                factoryManager.Update(Raylib.GetFrameTime());
-                buildMenu.Update();
+                Vector3 lightPosition = new Vector3(0.0f, 6.0f, 0.0f);
                 
-                if (!DebugConsole.IsOpen())
+                if (shader.Id != 0)
                 {
-                    // Kamera
-                    cameraController.Update();
-                    GlobalData.camera = cameraController.Camera;
-                    
-                    // Auswahl mit Hotkeys
-                    if (Raylib.IsKeyPressed(KeyboardKey.Tab))
-                        placementSystem.SelectNext();
-                    if (Raylib.IsKeyPressed(KeyboardKey.One))
-                        placementSystem.SelectIndex(0);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Two))
-                        placementSystem.SelectIndex(1);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Three))
-                        placementSystem.SelectIndex(2);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Four))
-                        placementSystem.SelectIndex(3);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Five))
-                        placementSystem.SelectIndex(4);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Six))
-                        placementSystem.SelectIndex(5);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Seven))
-                        placementSystem.SelectIndex(6);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Eight))
-                        placementSystem.SelectIndex(7);
-                    if (Raylib.IsKeyPressed(KeyboardKey.Nine))
-                        placementSystem.SelectIndex(8);
-                    
-                    // Belt-Rotation
-                    if (Raylib.IsKeyPressed(KeyboardKey.R))
-                        placementSystem.RotateBelt();
-                    
-                    // Preview
-                    placementSystem.UpdatePreview(Raylib.GetMousePosition());
-                    
-                    // ===== CLICK HANDLING (NUR WENN NICHT ÜBER UI) =====
-                    if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                    Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightPos"),
+                        new float[] { lightPosition.X, lightPosition.Y, lightPosition.Z }, ShaderUniformDataType.Vec3);
+                    Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "lightColor"),
+                        new float[] { 1.0f, 1.0f, 1.0f, 1.0f }, ShaderUniformDataType.Vec4);
+                    Raylib.SetShaderValue(shader, Raylib.GetShaderLocation(shader, "ambient"),
+                        new float[] { 0.5f, 0.5f, 0.5f, 1.0f }, ShaderUniformDataType.Vec4);
+                }
+
+                // ===== MODELLE =====
+                Console.WriteLine("[Program] Loading models...");
+                
+                Model cubeModel = Raylib.LoadModelFromMesh(Raylib.GenMeshCube(1.0f, 1.0f, 1.0f));
+                
+                // Lade Models und watch files
+                Model Wand = LoadAndWatchModel("Wand", @"..\..\..\Resources\Wand.obj", cubeModel);
+                Model Boden = LoadAndWatchModel("Boden", @"..\..\..\Resources\Boden.obj", cubeModel);
+                Model Iron_Furnace = LoadAndWatchModel("Iron_Furnace", @"..\..\..\Resources\Iron_Furnace.obj", cubeModel);
+                Model IronDrillModel = LoadAndWatchModel("IronDrill", @"..\..\..\Resources\Maschiene.obj", cubeModel);
+                Model CopperDrillModel = LoadAndWatchModel("CopperDrill", @"..\..\..\Resources\Maschiene.obj", cubeModel);
+                Model BeltModel = LoadAndWatchModel("Belt", @"..\..\..\Resources\Belt.obj", cubeModel);
+                //Model BeltLinks = LoadAndWatchModel("BeltCurveLeft", @"..\..\..\Resources\belt_curve_left.obj", BeltModel);
+                //Model BeltRechts = LoadAndWatchModel("BeltCurveRight", @"..\..\..\Resources\belt_curve_right.obj", BeltModel);
+
+                Console.WriteLine("[Program] All models loaded");
+
+                // Shader anwenden
+                if (shader.Id != 0)
+                {
+                    unsafe
                     {
-                        // Prüfe zuerst ob über Build-Menu geklickt wurde
-                        if (!buildMenu.IsMouseOverUI())
+                        Boden.Materials[0].Shader = shader;
+                        Wand.Materials[0].Shader = shader;
+                        cubeModel.Materials[0].Shader = shader;
+                        IronDrillModel.Materials[0].Shader = shader;
+                        CopperDrillModel.Materials[0].Shader = shader;
+                        BeltModel.Materials[0].Shader = shader;
+                        //BeltRechts.Materials[0].Shader = shader;
+                        //BeltLinks.Materials[0].Shader = shader;
+                        Iron_Furnace.Materials[0].Shader = shader;
+                    }
+                }
+
+                // ===== MASCHINEN-SYSTEM =====
+                MachineRegistry.Initialize();
+                ResourceRegistry.Initialize();
+                ResourceRegistry.PrintAll();
+                
+                var modelMap = new Dictionary<string, Model>
+                {
+                    { "default", cubeModel },
+                    { "MiningDrill_Iron", IronDrillModel },
+                    { "MiningDrill_Copper", CopperDrillModel },
+                    { "Iron_Furnace", Iron_Furnace },
+                    { "ConveyorBelt", BeltModel },
+                    { "ConveyorBelt_Straight", BeltModel },
+                    //{ "ConveyorBelt_CurveLeft", BeltLinks },
+                    //{ "ConveyorBelt_CurveRight", BeltRechts },
+                    { "ConveyorBelt_RampUp", BeltModel },
+                    { "ConveyorBelt_RampDown", BeltModel },
+                };
+                
+                List<MachineDefinition> machineDefinitions = MachineRegistry.LoadAllDefinitions(modelMap);
+             
+                Grid grid = new Grid();
+                FactoryManager factoryManager = new FactoryManager();
+                factoryManager.TotalPowerGeneration = 200f;
+                PlacementSystem placementSystem = new PlacementSystem(machineDefinitions, factoryManager, GlobalData.camera);
+                
+                BuildMenuUI buildMenu = new BuildMenuUI(machineDefinitions, placementSystem);
+                
+                Console.WriteLine("[Program] Starting main loop...");
+                
+                bool requestRestart = false;
+                
+                while (!Raylib.WindowShouldClose() && !requestRestart)
+                {
+                    float deltaTime = Raylib.GetFrameTime();
+                    
+                    // ===== HOT RELOAD UPDATE =====
+                    HotReloadSystem.Update(deltaTime);
+                    
+                    if (Raylib.IsWindowResized())
+                    {
+                        GlobalData.UpdateScreenSize();
+                        buildMenu.UpdateLayout(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT);
+                    }
+                    
+                    DebugConsole.Update();
+                    factoryManager.Update(deltaTime);
+                    buildMenu.Update();
+                    
+                    if (!DebugConsole.IsOpen())
+                    {
+                        cameraController.Update();
+                        GlobalData.camera = cameraController.Camera;
+                        
+                        // ===== KAMERA RESET =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.Home))
                         {
-                            // Dann prüfe ob Maschinen-Button geklickt wurde
-                            if (!IsAnyButtonHovered(factoryManager))
+                            cameraController.ResetCamera();
+                            Console.WriteLine("[Camera] Reset to origin");
+                        }
+                        
+                        // ===== SNAP TO CARDINAL =====
+                       
+                                            
+                        // ===== HOT RELOAD TOGGLE =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.F5))
+                        {
+                            HotReloadSystem.Enabled = !HotReloadSystem.Enabled;
+                            Console.WriteLine($"[HotReload] {(HotReloadSystem.Enabled ? "Enabled" : "Disabled")}");
+                        }
+                        
+                        // ===== RESTART FÜR HOT RELOAD =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.F6) && HotReloadSystem.NeedsRestart)
+                        {
+                            Console.WriteLine("[HotReload] Restarting to apply changes...");
+                            requestRestart = true;
+                            break;
+                        }
+                        // ===== PLACEMENT SYSTEM INPUT =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.One))
+                            placementSystem.SelectIndex(0);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Two))
+                            placementSystem.SelectIndex(1);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Three))
+                            placementSystem.SelectIndex(2);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Four))
+                            placementSystem.SelectIndex(3);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Five))
+                            placementSystem.SelectIndex(4);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Six))
+                            placementSystem.SelectIndex(5);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Seven))
+                            placementSystem.SelectIndex(6);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Eight))
+                            placementSystem.SelectIndex(7);
+                        if (Raylib.IsKeyPressed(KeyboardKey.Nine))
+                            placementSystem.SelectIndex(8);
+                        
+                        if (Raylib.IsKeyPressed(KeyboardKey.R))
+                            placementSystem.RotateBelt();
+                        
+                        placementSystem.UpdatePreview(Raylib.GetMousePosition());
+                        
+                        if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+                        {
+                            if (!buildMenu.IsMouseOverUI())
                             {
-                                placementSystem.PlaceObject();
+                                if (!IsAnyButtonHovered(factoryManager))
+                                {
+                                    placementSystem.PlaceObject();
+                                }
+                                else
+                                {
+                                    factoryManager.HandleMachineClicks();
+                                }
                             }
-                            else
+                        }
+                        
+                        if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                        {
+                            if (!buildMenu.IsMouseOverUI())
                             {
-                                factoryManager.HandleMachineClicks();
+                                placementSystem.RemoveObject();
                             }
                         }
                     }
                     
-                    // Entfernen
-                    if (Raylib.IsMouseButtonPressed(MouseButton.Right))
+                    // ===== DRAW =====
+                    Raylib.BeginDrawing();
+                    Raylib.ClearBackground(new Color(135, 206, 235, 255));
+                    
+                    Raylib.BeginMode3D(GlobalData.camera);
+                        UI.MainUI.Draw3DElements();
+                        Raylib.DrawSphere(lightPosition, 0.3f, Color.Yellow);
+                        Raylib.DrawModelEx(Boden, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
+                        factoryManager.DrawAll();
+                        placementSystem.DrawPreview();
+                    Raylib.EndMode3D();
+
+                    Raylib.DrawText("WASD: Move | F5: Hot Reload Toggle | F6: Apply Reload (Restart)", 10, 10, 18, Color.Black);
+                    Raylib.DrawText("LClick: Place | RClick: Remove | R: Rotate Belt", 10, 32, 18, Color.Black);
+                    
+                    // ===== HOT RELOAD STATUS =====
+                    string hotReloadStatus = HotReloadSystem.Enabled ? "ON" : "OFF";
+                    Color hotReloadColor = HotReloadSystem.Enabled ? Color.Green : Color.Red;
+                    Raylib.DrawText($"Hot Reload: {hotReloadStatus}", GlobalData.SCREEN_WIDTH - 150, 10, 18, hotReloadColor);
+                    
+                    // ===== RELOAD NOTIFICATION =====
+                    if (HotReloadSystem.NeedsRestart)
                     {
-                        if (!buildMenu.IsMouseOverUI())
-                        {
-                            placementSystem.RemoveObject();
-                        }
+                        int centerX = GlobalData.SCREEN_WIDTH / 2;
+                        int centerY = 100;
+                        
+                        string message = "CHANGES DETECTED! Press F6 to reload";
+                        int textWidth = Raylib.MeasureText(message, 20);
+                        
+                        Raylib.DrawRectangle(centerX - textWidth/2 - 20, centerY - 15, textWidth + 40, 50, new Color(0, 0, 0, 200));
+                        Raylib.DrawText(message, centerX - textWidth/2, centerY, 20, Color.Yellow);
+                        
+                        var changedFiles = HotReloadSystem.GetChangedFiles();
+                        string filesText = $"Changed: {string.Join(", ", changedFiles)}";
+                        int filesWidth = Raylib.MeasureText(filesText, 14);
+                        Raylib.DrawText(filesText, centerX - filesWidth/2, centerY + 25, 14, Color.White);
                     }
+                    
+                    factoryManager.DrawDebugInfo(60);
+                    UI.MainUI.DebugDataUI();
+                    buildMenu.Draw(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT);
+                    DebugConsole.Draw();
+
+                    Raylib.EndDrawing();
                 }
-                
-                // ===== DRAW =====
-                Raylib.BeginDrawing();
-                Raylib.ClearBackground(new Color(135, 206, 235, 255));
-                
-                Raylib.BeginMode3D(GlobalData.camera);
-                    UI.MainUI.Draw3DElements();
-                    Raylib.DrawSphere(lightPosition, 0.3f, Color.Yellow);
-                    
-                    //Building.DrawBorderWallWithModel(Wand, 9, 1.0f);
-                    Raylib.DrawModelEx(Boden, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
-                    
-                    factoryManager.DrawAll();
-                    placementSystem.DrawPreview();
-                Raylib.EndMode3D();
 
-                // ===== UI =====
-                Raylib.DrawText("WASD: Move | Space/Shift: Up/Down | Arrows: Rotate/Zoom", 10, 10, 18, Color.Black);
-                Raylib.DrawText("LClick: Place/Toggle | RClick: Remove | R: Rotate Belt", 10, 32, 18, Color.Black);
-                
-                factoryManager.DrawDebugInfo(60);
-                UI.MainUI.DebugDataUI();
-                
-                // ===== NEU: BUILD MENU ZEICHNEN =====
-                buildMenu.Draw(GlobalData.SCREEN_WIDTH, GlobalData.SCREEN_HEIGHT);
-                
-                DebugConsole.Draw();
+                Console.WriteLine("[Program] Cleaning up...");
 
-                Raylib.EndDrawing();
+                // Cleanup
+                HotReloadSystem.Cleanup();
+                buildMenu.Unload();
+                if (shader.Id != 0)
+                    Raylib.UnloadShader(shader);
+                Raylib.UnloadModel(Wand);
+                Raylib.UnloadModel(Boden);
+                Raylib.UnloadModel(Iron_Furnace);
+                Raylib.UnloadModel(IronDrillModel);
+                Raylib.UnloadModel(CopperDrillModel);
+                Raylib.UnloadModel(BeltModel);
+                //Raylib.UnloadModel(BeltLinks);
+                //Raylib.UnloadModel(BeltRechts);
+                Raylib.UnloadModel(cubeModel);
+                Raylib.CloseWindow();
+                
+                HotReloadSystem.ResetChanges();
+                
+                return requestRestart;
             }
-
-            // ===== HELPER FUNKTION =====
-            static bool IsAnyButtonHovered(FactoryManager manager)
+            catch (Exception ex)
             {
-                foreach (var machine in manager.GetAllMachines())
-                {
-                    if (machine.IsButtonHovered())
-                        return true;
-                }
+                Console.WriteLine($"[Program] FATAL ERROR: {ex.Message}");
+                Console.WriteLine($"[Program] Stack Trace: {ex.StackTrace}");
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
                 return false;
             }
+        }
 
-            // Cleanup
-            buildMenu.Unload();
-            Raylib.UnloadShader(shader);
-            Raylib.UnloadModel(Wand);
-            Raylib.UnloadModel(Boden);
-            Raylib.UnloadModel(Iron_Furnace);
-            Raylib.UnloadModel(IronDrillModel);
-            Raylib.UnloadModel(CopperDrillModel);
-            Raylib.UnloadModel(BeltModel);
-            Raylib.UnloadModel(cubeModel);
-            Raylib.CloseWindow();
+        static bool IsAnyButtonHovered(FactoryManager manager)
+        {
+            foreach (var machine in manager.GetAllMachines())
+            {
+                if (machine.IsButtonHovered())
+                    return true;
+            }
+            return false;
+        }
+        
+        // ===== HELPER: MODEL LADEN UND WATCHEN =====
+        static Model LoadAndWatchModel(string key, string path, Model fallback)
+        {
+            try
+            {
+                if (System.IO.File.Exists(path))
+                {
+                    var model = Raylib.LoadModel(path);
+                    HotReloadSystem.WatchFile(key, path);
+                    Console.WriteLine($"[Program] Loaded & watching: {key}");
+                    return model;
+                }
+                else
+                {
+                    Console.WriteLine($"[Program] WARNING: File not found: {path}, using fallback");
+                    return fallback;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Program] ERROR loading {path}: {ex.Message}");
+                return fallback;
+            }
         }
     }
 }
