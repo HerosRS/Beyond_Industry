@@ -67,8 +67,22 @@ namespace BeyondIndustry
                 Target = targetPosition,
                 Up = new Vector3(0.0f, 1.0f, 0.0f),
                 FovY = GameConstants.DEFAULT_CAMERA_FOV,
-                Projection = CameraProjection.Orthographic
+                Projection = CameraProjection.Perspective
             };
+        }
+        public float GetHorizontalAngle() => horizontalAngle;
+        public float GetVerticalAngle() => verticalAngle;
+        public float GetDistance() => distance;
+
+        public void SetPosition(Vector3 target, float horizontal, float vertical, float dist)
+        {
+            targetPosition = target;
+            horizontalAngle = horizontal;
+            verticalAngle = vertical;
+            distance = dist;
+            
+            Camera.Position = CalculateCameraPosition();
+            Camera.Target = targetPosition;
         }
         
         // ===== UPDATE =====

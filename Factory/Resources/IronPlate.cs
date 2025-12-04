@@ -6,14 +6,14 @@ namespace BeyondIndustry.Factory.Resources
     {
         public IronPlate()
         {
-            Name = "Iron Plate";
+            Name = "IronPlate";
             DisplayName = "Eisenplatte";
-            Color = new Color(192, 192, 192, 255);
+            Color = new Color(169, 169, 169, 255);
             Type = ResourceType.ProcessedOre;
-            Description = "Geschmolzenes Eisen. Grundmaterial für viele Komponenten.";
+            Description = "Geschmolzenes Eisen, bereit zur Weiterverarbeitung.";
             
             StackSize = 100;
-            Weight = 0.8f;
+            Weight = 0.5f;
         }
     }
 }

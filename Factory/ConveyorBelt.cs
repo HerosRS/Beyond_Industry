@@ -320,7 +320,10 @@ namespace BeyondIndustry.Factory
             
             return false;
         }
-        
+        public List<ConveyorItem> GetItems()
+        {
+            return new List<ConveyorItem>(items);
+        }
         public override void Draw()
         {
             DrawBeltModel();

@@ -3,265 +3,448 @@ using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
 using BeyondIndustry.Factory;
+using BeyondIndustry.Data;
 
 namespace BeyondIndustry
 {
-    public class PlacedObject
-    {
-        public Vector3 Position;
-        public Model Model;
-        public string Type;
-        public Vector3 Size;
-        public FactoryMachine? Machine;
-        
-        public PlacedObject(Vector3 pos, Model model, string type, Vector3 size, FactoryMachine? machine = null)
-        {
-            Position = pos;
-            Model = model;
-            Type = type;
-            Size = size;
-            Machine = machine;
-        }
-    }
-    
+    /// <summary>
+    /// Verwaltung des Platzier-Systems: Auswahl von Maschinen, Vorschaupositionen, Layer-Management
+    /// und tatsächliches Platzieren / Entfernen von Maschinen in der Fabrikwelt.
+    /// </summary>
     public class PlacementSystem
     {
-        // Grid-Einstellungen
+        private List<MachineDefinition> machineDefinitions;
+        private FactoryManager factoryManager;
+        
+        public int SelectedMachineIndex { get; private set; } = 0;
+        public bool ShowPreview { get; private set; } = false;
+        public Vector3 PreviewPosition { get; private set; }
+        
         public int GridSize { get; set; } = 100;
         public float CellSize { get; set; } = 1.0f;
         
-        // Platzierte Objekte
-        public List<PlacedObject> PlacedObjects { get; private set; }
+        public int CurrentLayer { get; private set; } = 0;
+        public float LayerHeight { get; set; } = 1.0f;
+        public bool AutoDetectHeight { get; set; } = true;
+        public bool SnapToSurface { get; set; } = true;
         
-        // Preview
-        public bool ShowPreview { get; set; }
-        public Vector3 PreviewPosition { get; set; }
-        public int SelectedMachineIndex { get; set; }
+        private FactoryMachine? detectedBaseMachine = null;
+        private float detectedHeight = 0f;
+        private bool canPlace = false;
         
-        // Belt-Rotation
-        public int BeltRotation { get; set; }
-        public Vector3[] BeltDirections { get; private set; }
-        public string[] BeltDirectionNames { get; private set; }
+        private Vector3 currentBeltDirection = new Vector3(1, 0, 0);
         
-        private List<MachineDefinition> machineDefinitions;
-        private FactoryManager factoryManager;
-        private Camera3D camera;
-        
-        public PlacementSystem(List<MachineDefinition> definitions, FactoryManager manager, Camera3D cam)
+        /// <summary>
+        /// Konstruktor: Initialisiert das PlacementSystem mit verfügbaren Maschinendefinitionen
+        /// und einer Referenz auf den FactoryManager zur Verwaltung der Maschinen.
+        /// </summary>
+        public PlacementSystem(List<MachineDefinition> definitions, FactoryManager manager)
         {
-            PlacedObjects = new List<PlacedObject>();
             machineDefinitions = definitions;
             factoryManager = manager;
-            camera = cam;
-            
-            ShowPreview = false;
-            PreviewPosition = Vector3.Zero;
-            SelectedMachineIndex = 0;
-            
-            // Belt-Richtungen
-            BeltRotation = 0;
-            BeltDirections = new Vector3[]
-            {
-                new Vector3(1, 0, 0),   // Rechts (→)
-                new Vector3(0, 0, 1),   // Unten (↓)
-                new Vector3(-1, 0, 0),  // Links (←)
-                new Vector3(0, 0, -1)   // Oben (↑)
-            };
-            BeltDirectionNames = new string[] { "→", "↓", "←", "↑" };
         }
         
-        // ===== AUSWAHL =====
+        /// <summary>
+        /// Wählt die nächste Maschine in der Definitionsliste (cyclic).
+        /// </summary>
         public void SelectNext()
         {
             SelectedMachineIndex = (SelectedMachineIndex + 1) % machineDefinitions.Count;
-            Console.WriteLine($"Ausgewählt: {machineDefinitions[SelectedMachineIndex].Name}");
         }
         
+        /// <summary>
+        /// Wählt die Maschine an einem bestimmten Index, falls gültig.
+        /// </summary>
+        /// <param name="index">Index der zu wählenden Maschine.</param>
         public void SelectIndex(int index)
         {
             if (index >= 0 && index < machineDefinitions.Count)
-            {
                 SelectedMachineIndex = index;
+        }
+        
+        /// <summary>
+        /// Dreht die aktuelle Förderband-Richtung um 90° (nützlich für Belt-Rotation bei Platzierung).
+        /// </summary>
+        public void RotateBelt()
+        {
+            float angle90 = MathF.PI / 2.0f;
+            float currentAngle = MathF.Atan2(currentBeltDirection.X, currentBeltDirection.Z);
+            float newAngle = currentAngle + angle90;
+            
+            currentBeltDirection = new Vector3(
+                MathF.Sin(newAngle),
+                0,
+                MathF.Cos(newAngle)
+            );
+            
+            currentBeltDirection = Vector3.Normalize(currentBeltDirection);
+        }
+        
+        /// <summary>
+        /// Erhöht den aktuellen Layer (Höhenebene) um 1 und gibt die neue Höhe in der Konsole aus.
+        /// </summary>
+        public void IncreaseLayer()
+        {
+            CurrentLayer++;
+            Console.WriteLine($"[Placement] Layer: {CurrentLayer} (Height: {CurrentLayer * LayerHeight}m)");
+        }
+        
+        /// <summary>
+        /// Verringert den aktuellen Layer um 1 (falls größer als 0) und gibt die neue Höhe aus.
+        /// </summary>
+        public void DecreaseLayer()
+        {
+            if (CurrentLayer > 0)
+            {
+                CurrentLayer--;
+                Console.WriteLine($"[Placement] Layer: {CurrentLayer} (Height: {CurrentLayer * LayerHeight}m)");
             }
         }
         
-        // ===== BELT-ROTATION =====
-        public void RotateBelt()
+        /// <summary>
+        /// Setzt den aktuellen Layer zurück auf 0.
+        /// </summary>
+        public void ResetLayer()
         {
-            BeltRotation = (BeltRotation + 1) % 4;
-            Console.WriteLine($"Belt-Richtung: {BeltDirectionNames[BeltRotation]}");
+            CurrentLayer = 0;
+            Console.WriteLine("[Placement] Layer reset to 0");
         }
         
-        // ===== PREVIEW BERECHNEN =====
+        /// <summary>
+        /// Aktualisiert die Vorschauposition basierend auf der Bildschirm-Mausposition.
+        /// Führt Raycasts gegen Maschinen und Boden aus, ermittelt Snapping, Layer-Höhe und
+        /// setzt die Flags canPlace / ShowPreview entsprechend.
+        /// </summary>
+        /// <param name="mousePosition">aktuelle Mausposition in Bildschirmkoordinaten (Vector2)</param>
         public void UpdatePreview(Vector2 mousePosition)
         {
-            Ray mouseRay = Raylib.GetScreenToWorldRay(mousePosition, camera);
-            RayCollision groundCollision = Raylib.GetRayCollisionQuad(
-                mouseRay,
-                new Vector3(-50, 0, -50),
-                new Vector3(-50, 0, 50),
-                new Vector3(50, 0, 50),
-                new Vector3(50, 0, -50)
-            );
+            Ray mouseRay = Raylib.GetScreenToWorldRay(mousePosition, GlobalData.camera);
             
-            if (groundCollision.Hit)
+            MachineDefinition currentDef = machineDefinitions[SelectedMachineIndex];
+            
+            ShowPreview = false;
+            canPlace = false;
+            detectedBaseMachine = null;
+            detectedHeight = 0f;
+            
+            // ===== SCHRITT 1: SUCHE NACH MASCHINEN =====
+            FactoryMachine? hitMachine = null;
+            float closestDistance = float.MaxValue;
+            
+            if (AutoDetectHeight || SnapToSurface)
             {
-                ShowPreview = true;
-                Vector3 hitPoint = groundCollision.Point;
-                MachineDefinition currentDef = machineDefinitions[SelectedMachineIndex];
-                
-                int gridX = (int)MathF.Round(hitPoint.X / CellSize);
-                int gridZ = (int)MathF.Round(hitPoint.Z / CellSize);
-                int halfGrid = GridSize / 2;
-                
-                if (gridX >= -halfGrid && gridX <= halfGrid && 
-                    gridZ >= -halfGrid && gridZ <= halfGrid)
+                foreach (var machine in factoryManager.GetAllMachines())
                 {
-                    PreviewPosition = new Vector3(gridX * CellSize, currentDef.YOffset, gridZ * CellSize);
+                    BoundingBox machineBox = new BoundingBox(
+                        machine.Position - new Vector3(0.5f, 0, 0.5f),
+                        machine.Position + new Vector3(0.5f, 2.0f, 0.5f)
+                    );
+                    
+                    RayCollision collision = Raylib.GetRayCollisionBox(mouseRay, machineBox);
+                    
+                    if (collision.Hit && collision.Distance < closestDistance)
+                    {
+                        closestDistance = collision.Distance;
+                        hitMachine = machine;
+                    }
                 }
-                else
-                {
-                    ShowPreview = false;
-                }
+            }
+            
+            // ===== SCHRITT 2: PLATZIERUNGS-HÖHE =====
+            Vector3 placementPos;
+            float targetHeight = CurrentLayer * LayerHeight;
+            
+            if (hitMachine != null && SnapToSurface)
+            {
+                // Wenn eine Maschine getroffen wurde und Snap enabled ist, platziere relativ zu dieser Maschine
+                detectedBaseMachine = hitMachine;
+                
+                // Platziere 1 Block höher als die Basis-Maschine
+                detectedHeight = hitMachine.Position.Y + 1.0f;
+                
+                int gridX = (int)MathF.Round(hitMachine.Position.X / CellSize);
+                int gridZ = (int)MathF.Round(hitMachine.Position.Z / CellSize);
+                
+                placementPos = new Vector3(
+                    gridX * CellSize,
+                    detectedHeight + currentDef.YOffset,
+                    gridZ * CellSize
+                );
+                
+                canPlace = true;
             }
             else
             {
-                ShowPreview = false;
+                // ===== GROUND PLACEMENT =====
+                float planeSize = 500f;
+                
+                // Versuche direkten Quad-Collision-Check (schneller) und fallback auf plane intersection
+                RayCollision groundCollision = Raylib.GetRayCollisionQuad(
+                    mouseRay,
+                    new Vector3(-planeSize, targetHeight, -planeSize),
+                    new Vector3(-planeSize, targetHeight, planeSize),
+                    new Vector3(planeSize, targetHeight, planeSize),
+                    new Vector3(planeSize, targetHeight, -planeSize)
+                );
+                
+                if (!groundCollision.Hit)
+                {
+                    // Falls Quad-Collision fehlschlägt, berechne die Schnittstelle mit Y-Ebene manuell
+                    if (TryGetPlaneIntersection(mouseRay, targetHeight, out Vector3 intersection))
+                    {
+                        int gridX = (int)MathF.Round(intersection.X / CellSize);
+                        int gridZ = (int)MathF.Round(intersection.Z / CellSize);
+                        int halfGrid = GridSize / 2;
+                        
+                        if (gridX >= -halfGrid && gridX <= halfGrid && 
+                            gridZ >= -halfGrid && gridZ <= halfGrid)
+                        {
+                            placementPos = new Vector3(
+                                gridX * CellSize,
+                                targetHeight + currentDef.YOffset,
+                                gridZ * CellSize
+                            );
+                            
+                            detectedHeight = targetHeight;
+                            canPlace = true;
+                            
+                            ShowPreview = true;
+                            PreviewPosition = placementPos;
+                        }
+                    }
+                    return;
+                }
+                
+                // Wenn Quad gehitten wurde, nimm den errechneten Punkt
+                Vector3 hitPoint = groundCollision.Point;
+                
+                int gridX2 = (int)MathF.Round(hitPoint.X / CellSize);
+                int gridZ2 = (int)MathF.Round(hitPoint.Z / CellSize);
+                int halfGrid2 = GridSize / 2;
+                
+                if (gridX2 < -halfGrid2 || gridX2 > halfGrid2 || 
+                    gridZ2 < -halfGrid2 || gridZ2 > halfGrid2)
+                    return;
+                
+                placementPos = new Vector3(
+                    gridX2 * CellSize,
+                    targetHeight + currentDef.YOffset,
+                    gridZ2 * CellSize
+                );
+                
+                detectedHeight = targetHeight;
+                canPlace = true;
             }
+            
+            // ===== SCHRITT 3: CHECK OB FREI =====
+            if (canPlace)
+            {
+                foreach (var machine in factoryManager.GetAllMachines())
+                {
+                    float distance = Vector3.Distance(machine.Position, placementPos);
+                    if (distance < 0.5f)
+                    {
+                        // Wenn bereits eine Maschine zu nah ist, Platzierung verbieten
+                        canPlace = false;
+                        break;
+                    }
+                }
+            }
+            
+            ShowPreview = true;
+            PreviewPosition = placementPos;
         }
         
-        // ===== PLATZIEREN =====
-        public void PlaceObject()
+        /// <summary>
+        /// Berechnet die Schnittstelle eines Rays mit einer horizontalen Ebene auf Höhe planeY.
+        /// Gibt true zurück und liefert die Schnittposition, wenn eine Schnittstelle vorliegt.
+        /// </summary>
+        /// <param name="ray">Der Ray im Welt-Raum</param>
+        /// <param name="planeY">Y-Koordinate der Ebene</param>
+        /// <param name="intersection">ausgabe: Schnittpunkt (falls vorhanden)</param>
+        /// <returns>True, wenn Schnitt vorhanden und vor dem Ray-Start</returns>
+        private bool TryGetPlaneIntersection(Ray ray, float planeY, out Vector3 intersection)
+        {
+            intersection = Vector3.Zero;
+            
+            if (MathF.Abs(ray.Direction.Y) < 0.0001f)
+            {
+                return false;
+            }
+            
+            float t = (planeY - ray.Position.Y) / ray.Direction.Y;
+            
+            if (t < 0)
+            {
+                return false;
+            }
+            
+            intersection = ray.Position + ray.Direction * t;
+            return true;
+        }
+        
+        /// <summary>
+        /// Zeichnet die Vorschau (Model + Wireframe + Info-Text) an der aktuellen PreviewPosition,
+        /// nutzt canPlace um Farbe/Status darzustellen. Zeichnet zusätzlich Debug-Ray wenn aktiviert.
+        /// </summary>
+        public void DrawPreview()
         {
             if (!ShowPreview) return;
             
             MachineDefinition currentDef = machineDefinitions[SelectedMachineIndex];
             
-            // Kollisionsprüfung
-            bool positionOccupied = false;
-            foreach (var obj in PlacedObjects)
+            Color previewColor = canPlace ? 
+                new Color(0, 255, 0, 100) : 
+                new Color(255, 0, 0, 100);
+            
+            Raylib.DrawModelEx(
+                currentDef.Model,
+                PreviewPosition,
+                new Vector3(0, 1, 0),
+                0,
+                Vector3.One,
+                previewColor
+            );
+            
+            Raylib.DrawCubeWires(
+                PreviewPosition,
+                currentDef.Size.X,
+                currentDef.Size.Y,
+                currentDef.Size.Z,
+                canPlace ? Color.Green : Color.Red
+            );
+            
+            Vector2 screenPos = Raylib.GetWorldToScreen(
+                PreviewPosition + new Vector3(0, 2, 0),
+                GlobalData.camera
+            );
+            
+            string info = $"{currentDef.Name}";
+            if (detectedBaseMachine != null)
             {
-                float distanceX = MathF.Abs(obj.Position.X - PreviewPosition.X);
-                float distanceZ = MathF.Abs(obj.Position.Z - PreviewPosition.Z);
-                
-                if (distanceX < (obj.Size.X + currentDef.Size.X) / 2 * CellSize &&
-                    distanceZ < (obj.Size.Z + currentDef.Size.Z) / 2 * CellSize)
-                {
-                    positionOccupied = true;
-                    break;
-                }
+                info += $"\nOn: {detectedBaseMachine.MachineType}";
+            }
+            info += $"\nLayer: {CurrentLayer} ({detectedHeight:F1}m)";
+            info += canPlace ? "\n[Can Place]" : "\n[Cannot Place]";
+            
+            Raylib.DrawText(info, (int)screenPos.X - 50, (int)screenPos.Y, 14, 
+                canPlace ? Color.Green : Color.Red);
+            
+            if (detectedBaseMachine != null)
+            {
+                Raylib.DrawLine3D(
+                    detectedBaseMachine.Position + new Vector3(0, 1, 0),
+                    PreviewPosition,
+                    new Color(255, 255, 0, 100)
+                );
             }
             
-            if (!positionOccupied)
+            if (GlobalData.ShowDebugInfo)
             {
-                FactoryMachine? machine = null;
-                
-                // Spezielle Behandlung für Conveyor Belts
-                if (currentDef.MachineType == "ConveyorBelt")
+                Ray mouseRay = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), GlobalData.camera);
+                Vector3 rayEnd = mouseRay.Position + mouseRay.Direction * 100f;
+                Raylib.DrawLine3D(mouseRay.Position, rayEnd, new Color(255, 0, 255, 100));
+                Raylib.DrawSphere(mouseRay.Position, 0.2f, Color.Magenta);
+            }
+        }
+        
+        /// <summary>
+        /// Platziert die aktuell ausgewählte Maschine an der PreviewPosition (falls gültig).
+        /// Erzeugt den passenden Maschinen-Typ (z. B. ConveyorBelt, MiningMachine, Furnace) und
+        /// fügt die Maschine dem FactoryManager hinzu.
+        /// </summary>
+        public void PlaceObject()
+        {
+            if (!ShowPreview || !canPlace) return;
+            
+            MachineDefinition currentDef = machineDefinitions[SelectedMachineIndex];
+            FactoryMachine? newMachine = null;
+            
+            if (currentDef.MachineType == "ConveyorBelt")
+            {
+                BeltType type = BeltType.Straight;
+                if (currentDef.CustomData != null && currentDef.CustomData.ContainsKey("BeltType"))
                 {
-                    // Hole Belt-Typ aus CustomData
-                    BeltType type = BeltType.Straight;
-                    if (currentDef.CustomData != null && currentDef.CustomData.ContainsKey("BeltType"))
-                    {
-                        type = (BeltType)currentDef.CustomData["BeltType"];
-                    }
-                    
-                    // Erstelle Belt mit richtigem Typ
-                    machine = new ConveyorBelt(
-                        PreviewPosition, 
-                        currentDef.Model, 
-                        BeltDirections[BeltRotation],
-                        type
-                    )
-                    {
-                        PowerConsumption = currentDef.PowerConsumption
-                    };
-                }
-                else
-                {
-                    machine = currentDef.CreateMachine(PreviewPosition);
-                }
-                
-                if (machine != null)
-                {
-                    factoryManager.AddMachine(machine);
-                    BeltConnectionHelper.UpdateAllConnections(factoryManager);
+                    type = (BeltType)currentDef.CustomData["BeltType"];
                 }
                 
-                PlacedObject newObject = new PlacedObject(
+                newMachine = new ConveyorBelt(
                     PreviewPosition,
                     currentDef.Model,
-                    currentDef.Name,
-                    currentDef.Size,
-                    machine
+                    currentBeltDirection,
+                    type
                 );
-                
-                PlacedObjects.Add(newObject);
-                Console.WriteLine($"{currentDef.Name} platziert ({PlacedObjects.Count} gesamt)");
+            }
+            else
+            {
+                newMachine = CreateMachineFromDefinition(currentDef, PreviewPosition);
+            }
+            
+            if (newMachine != null)
+            {
+                factoryManager.AddMachine(newMachine);
+                Console.WriteLine($"[Placement] Placed {currentDef.Name} at {PreviewPosition} (Layer {CurrentLayer})");
             }
         }
         
-        // ===== ENTFERNEN =====
+        /// <summary>
+        /// Entfernt die Maschine, auf die mit der Maus gezeigt wird (Raycast gegen Maschinen-BoundingBoxen),
+        /// und entfernt diese aus dem FactoryManager, falls gefunden.
+        /// </summary>
         public void RemoveObject()
         {
-            if (!ShowPreview) return;
+            Ray mouseRay = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), GlobalData.camera);
             
-            for (int i = PlacedObjects.Count - 1; i >= 0; i--)
+            FactoryMachine? closestMachine = null;
+            float closestDistance = float.MaxValue;
+            
+            foreach (var machine in factoryManager.GetAllMachines())
             {
-                float distanceX = MathF.Abs(PlacedObjects[i].Position.X - PreviewPosition.X);
-                float distanceZ = MathF.Abs(PlacedObjects[i].Position.Z - PreviewPosition.Z);
+                BoundingBox machineBox = new BoundingBox(
+                    machine.Position - new Vector3(0.5f, 0, 0.5f),
+                    machine.Position + new Vector3(0.5f, 2.0f, 0.5f)
+                );
                 
-                if (distanceX < PlacedObjects[i].Size.X * CellSize / 2 &&
-                    distanceZ < PlacedObjects[i].Size.Z * CellSize / 2)
+                RayCollision collision = Raylib.GetRayCollisionBox(mouseRay, machineBox);
+                
+                if (collision.Hit && collision.Distance < closestDistance)
                 {
-                    if (PlacedObjects[i].Machine != null)
-                    {
-                        factoryManager.RemoveMachine(PlacedObjects[i].Machine);
-                        BeltConnectionHelper.UpdateAllConnections(factoryManager);
-                    }
-                    
-                    Console.WriteLine($"{PlacedObjects[i].Type} entfernt");
-                    PlacedObjects.RemoveAt(i);
-                    break;
+                    closestDistance = collision.Distance;
+                    closestMachine = machine;
                 }
+            }
+            
+            if (closestMachine != null)
+            {
+                factoryManager.RemoveMachine(closestMachine);
+                Console.WriteLine($"[Placement] Removed {closestMachine.MachineType}");
             }
         }
         
-        // ===== PREVIEW ZEICHNEN =====
-        public void DrawPreview()
+        /// <summary>
+        /// Hilfsmethode: Erzeugt eine konkrete FactoryMachine-Instanz anhand der Maschinendefinition.
+        /// Unterstützt aktuell MiningDrill_Iron, MiningDrill_Copper und Iron_Furnace.
+        /// </summary>
+        /// <param name="def">MachineDefinition mit Typ & Model</param>
+        /// <param name="position">Platzierungsposition</param>
+        /// <returns>Neue FactoryMachine-Instanz oder null, wenn Typ unbekannt ist.</returns>
+        private FactoryMachine? CreateMachineFromDefinition(MachineDefinition def, Vector3 position)
         {
-            if (ShowPreview && SelectedMachineIndex < machineDefinitions.Count)
+            switch (def.MachineType)
             {
-                MachineDefinition currentDef = machineDefinitions[SelectedMachineIndex];
-                Raylib.DrawModel(currentDef.Model, PreviewPosition, 1.0f, currentDef.PreviewColor);
-                Raylib.DrawCubeWires(PreviewPosition, currentDef.Size.X, currentDef.Size.Y, currentDef.Size.Z, Color.White);
+                case "MiningDrill_Iron":
+                    return new MiningMachine(position, def.Model, "IronOre");
                 
-                // Belt-Richtungspfeil
-                if (currentDef.MachineType == "ConveyorBelt")
-                {
-                    Vector3 arrowStart = PreviewPosition + new Vector3(0, 0.6f, 0);
-                    Vector3 arrowEnd = arrowStart + BeltDirections[BeltRotation] * 0.6f;
-                    Raylib.DrawLine3D(arrowStart, arrowEnd, Color.Lime);
-                    Raylib.DrawSphere(arrowEnd, 0.1f, Color.Lime);
-                }
+                case "MiningDrill_Copper":
+                    return new MiningMachine(position, def.Model, "CopperOre");
+                
+                case "Iron_Furnace":
+                    return new FurnaceMachine(position, def.Model, "IronOre", "IronPlate");
+                
+                default:
+                    Console.WriteLine($"[Placement] Unknown machine type: {def.MachineType}");
+                    return null;
             }
-        }
-        
-        // ===== UI INFO =====
-        public string GetSelectedInfo()
-        {
-            if (SelectedMachineIndex < machineDefinitions.Count)
-            {
-                string info = $"Selected: {machineDefinitions[SelectedMachineIndex].Name} | Placed: {PlacedObjects.Count}";
-                
-                if (machineDefinitions[SelectedMachineIndex].MachineType == "ConveyorBelt")
-                {
-                    info += $" | Direction: {BeltDirectionNames[BeltRotation]}";
-                }
-                
-                return info;
-            }
-            return "";
         }
     }
 }

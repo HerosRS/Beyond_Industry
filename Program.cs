@@ -112,10 +112,46 @@ namespace BeyondIndustry
                 }
 
                 // ===== MASCHINEN-SYSTEM =====
-                MachineRegistry.Initialize();
+                
                 ResourceRegistry.Initialize();
                 ResourceRegistry.PrintAll();
-                
+                MachineRegistry.Initialize();
+                // ===== NACH DEM LADEN ALLER SYSTEME =====
+                SaveLoadManager.Initialize();
+
+
+                Console.WriteLine("[Program] === TESTING RESOURCE ACCESS ===");
+var ironOre = ResourceRegistry.Get("IronOre");
+if (ironOre != null)
+{
+    Console.WriteLine($"[Program] ✓ IronOre found: {ironOre.Name}, Color: RGB({ironOre.Color.R}, {ironOre.Color.G}, {ironOre.Color.B})");
+}
+else
+{
+    Console.WriteLine("[Program] ✗ ERROR: IronOre NOT FOUND!");
+}
+
+var copperOre = ResourceRegistry.Get("CopperOre");
+if (copperOre != null)
+{
+    Console.WriteLine($"[Program] ✓ CopperOre found: {copperOre.Name}");
+}
+else
+{
+    Console.WriteLine("[Program] ✗ ERROR: CopperOre NOT FOUND!");
+}
+
+var ironPlate = ResourceRegistry.Get("IronPlate");
+if (ironPlate != null)
+{
+    Console.WriteLine($"[Program] ✓ IronPlate found: {ironPlate.Name}");
+}
+else
+{
+    Console.WriteLine("[Program] ✗ ERROR: IronPlate NOT FOUND!");
+}
+Console.WriteLine("[Program] === END TEST ===");
+
                 var modelMap = new Dictionary<string, Model>
                 {
                     { "default", cubeModel },
@@ -135,8 +171,10 @@ namespace BeyondIndustry
                 Grid grid = new Grid();
                 FactoryManager factoryManager = new FactoryManager();
                 factoryManager.TotalPowerGeneration = 200f;
-                PlacementSystem placementSystem = new PlacementSystem(machineDefinitions, factoryManager, GlobalData.camera);
-                
+
+                // ===== PLACEMENT SYSTEM (OHNE KAMERA PARAMETER) =====
+                PlacementSystem placementSystem = new PlacementSystem(machineDefinitions, factoryManager);
+
                 BuildMenuUI buildMenu = new BuildMenuUI(machineDefinitions, placementSystem);
                 
                 Console.WriteLine("[Program] Starting main loop...");
@@ -189,6 +227,28 @@ namespace BeyondIndustry
                             requestRestart = true;
                             break;
                         }
+
+                    // ===== LAYER CONTROLS =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.KpAdd) || Raylib.IsKeyPressed(KeyboardKey.Equal))
+                        {
+                            placementSystem.IncreaseLayer();
+                        }
+                        if (Raylib.IsKeyPressed(KeyboardKey.KpSubtract) || Raylib.IsKeyPressed(KeyboardKey.Minus))
+                        {
+                            placementSystem.DecreaseLayer();
+                        }
+                        if (Raylib.IsKeyPressed(KeyboardKey.KpMultiply) || Raylib.IsKeyPressed(KeyboardKey.Zero))
+                        {
+                            placementSystem.ResetLayer();
+                        }
+                        
+                        // ===== AUTO-DETECT TOGGLE =====
+                        if (Raylib.IsKeyPressed(KeyboardKey.H))
+                        {
+                            placementSystem.AutoDetectHeight = !placementSystem.AutoDetectHeight;
+                            Console.WriteLine($"[Placement] Auto-Detect Height: {placementSystem.AutoDetectHeight}");
+                        }
+
                         // ===== PLACEMENT SYSTEM INPUT =====
                         if (Raylib.IsKeyPressed(KeyboardKey.One))
                             placementSystem.SelectIndex(0);
@@ -212,6 +272,17 @@ namespace BeyondIndustry
                         if (Raylib.IsKeyPressed(KeyboardKey.R))
                             placementSystem.RotateBelt();
                         
+                        if (Raylib.IsKeyPressed(KeyboardKey.F8))
+                            {
+                                SaveLoadManager.SaveGame("quicksave", factoryManager, cameraController);
+                            }
+                            
+                            if (Raylib.IsKeyPressed(KeyboardKey.F9))
+                            {
+                                SaveLoadManager.LoadGame("quicksave", factoryManager, cameraController, modelMap);
+                            }
+
+
                         placementSystem.UpdatePreview(Raylib.GetMousePosition());
                         
                         if (Raylib.IsMouseButtonPressed(MouseButton.Left))
@@ -224,7 +295,7 @@ namespace BeyondIndustry
                                 }
                                 else
                                 {
-                                    factoryManager.HandleMachineClicks();
+                                    factoryManager.HandleMachineClicks(Raylib.GetMousePosition());
                                 }
                             }
                         }
@@ -253,6 +324,9 @@ namespace BeyondIndustry
                     Raylib.DrawText("WASD: Move | F5: Hot Reload Toggle | F6: Apply Reload (Restart)", 10, 10, 18, Color.Black);
                     Raylib.DrawText("LClick: Place | RClick: Remove | R: Rotate Belt", 10, 32, 18, Color.Black);
                     
+                    Raylib.DrawText($"Layer: {placementSystem.CurrentLayer} | +/-: Change | 0: Reset | H: Auto-Detect", 
+    10, 54, 18, Color.Black);
+    
                     // ===== HOT RELOAD STATUS =====
                     string hotReloadStatus = HotReloadSystem.Enabled ? "ON" : "OFF";
                     Color hotReloadColor = HotReloadSystem.Enabled ? Color.Green : Color.Red;

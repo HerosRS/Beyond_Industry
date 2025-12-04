@@ -21,6 +21,12 @@ namespace BeyondIndustry.Factory
         public float ProductionTime { get; set; }
         public float PowerConsumption { get; set; }
         public int BufferSize { get; set; }
+
+        public bool CanBePlacedOn { get; set; } = true;         // Können andere darauf bauen?
+        public bool RequiresFoundation { get; set; } = false;    // Braucht Unterbau?
+        public List<string> AllowedBaseTypes { get; set; } = new List<string>(); // Welche Typen erlaubt als Base
+        public float PlacementHeight { get; set; } = 1.0f;       // Höhe für nächste Ebene
+        public bool IsFoundation { get; set; } = false;      
         
         // ===== NEU: CUSTOM DATA FÜR ZUSÄTZLICHE INFORMATIONEN =====
         public Dictionary<string, object>? CustomData { get; set; }

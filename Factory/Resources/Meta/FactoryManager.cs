@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Raylib_cs;
 
 namespace BeyondIndustry.Factory
@@ -38,18 +39,26 @@ namespace BeyondIndustry.Factory
             }
         }
         
-        // ===== NEU: BUTTON CLICKS VERARBEITEN =====
-        public void HandleMachineClicks()
+        // ===== BUTTON CLICKS VERARBEITEN =====
+        public void HandleMachineClicks(Vector2 mousePosition)
         {
-            // Von hinten nach vorne, damit vordere Maschinen Priorität haben
             for (int i = machines.Count - 1; i >= 0; i--)
             {
-                if (machines[i].CheckButtonClick())
+                machines[i].CheckButtonClick(mousePosition, Data.GlobalData.camera);
+            }
+        }
+        
+        public float GetTotalPowerConsumption()
+        {
+            float total = 0f;
+            foreach (var machine in machines)
+            {
+                if (machine.IsRunning)
                 {
-                    // Nur eine Maschine pro Klick togglen
-                    return;
+                    total += machine.PowerConsumption;
                 }
             }
+            return total;
         }
         
         public void DrawAll()
@@ -58,6 +67,17 @@ namespace BeyondIndustry.Factory
             {
                 machine.Draw();
             }
+        }
+        
+        public void Clear()
+        {
+            machines.Clear();
+            Console.WriteLine("[Factory] Cleared all machines");
+        }
+
+        public List<FactoryMachine> GetAllMachines()
+        {
+            return new List<FactoryMachine>(machines);
         }
         
         public void DrawDebugInfo(int startY)
@@ -73,7 +93,6 @@ namespace BeyondIndustry.Factory
                 CurrentPowerConsumption > TotalPowerGeneration ? Color.Red : Color.Green);
             y += 18;
             
-            // Anzahl aktiver/deaktivierter Maschinen
             int active = 0, disabled = 0;
             foreach (var machine in machines)
             {
@@ -95,11 +114,6 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawText(machine.GetDebugInfo(), 10, y, 12, statusColor);
                 y += 16;
             }
-        }
-        
-        public List<FactoryMachine> GetAllMachines()
-        {
-            return new List<FactoryMachine>(machines);
         }
         
         public List<ConveyorBelt> GetAllBelts()

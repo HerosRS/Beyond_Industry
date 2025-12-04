@@ -10,10 +10,10 @@ namespace BeyondIndustry.Factory.Resources
             DisplayName = "Kohle";
             Color = new Color(50, 50, 50, 255);
             Type = ResourceType.RawOre;
-            Description = "Brennstoff für Öfen und Generatoren.";
+            Description = "Brennstoff für Öfen und Energieerzeugung.";
             
             StackSize = 100;
-            Weight = 0.5f;
+            Weight = 0.8f;
         }
     }
 }

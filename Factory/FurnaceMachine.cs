@@ -3,10 +3,10 @@ using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
 using BeyondIndustry.Factory.Resources;
+using BeyondIndustry.Data;
 
 namespace BeyondIndustry.Factory
 {
-    // ===== SCHMELZOFEN-MASCHINE =====
     public class FurnaceMachine : FactoryMachine
     {
         public string InputResource { get; private set; }
@@ -14,18 +14,18 @@ namespace BeyondIndustry.Factory
         public int InputPerCycle { get; private set; }
         public int OutputPerCycle { get; private set; }
         public int InputBuffer { get; set; }
-        public int OutputBuffer { get; private set; }
+        public int OutputBuffer { get; set; }
         public int MaxBufferSize { get; set; }
         public int TotalProcessed { get; private set; }
         
         public FurnaceMachine(Vector3 position, Model model, 
-                             string inputResource = "Iron Ore", 
-                             string outputResource = "Iron Plate") 
+                             string inputResource = "IronOre", 
+                             string outputResource = "IronPlate") 
             : base(position, model)
         {
-            MachineType = "Furnace";
             InputResource = inputResource;
             OutputResource = outputResource;
+            MachineType = "Iron_Furnace";
             InputPerCycle = 1;
             OutputPerCycle = 1;
             ProductionCycleTime = 3.0f;
@@ -34,6 +34,33 @@ namespace BeyondIndustry.Factory
             OutputBuffer = 0;
             MaxBufferSize = 10;
             TotalProcessed = 0;
+        }
+        
+        // ===== IMPLEMENTIERE ABSTRACT METHODS =====
+        public override void Update(float deltaTime)
+        {
+            IsRunning = IsManuallyEnabled && HasPower() && InputBuffer >= InputPerCycle;
+            
+            if (!IsRunning) return;
+            
+            productionTimer += deltaTime;
+            
+            if (productionTimer >= ProductionCycleTime)
+            {
+                Process();
+                productionTimer = 0f;
+            }
+        }
+        
+        protected override void Process()
+        {
+            if (InputBuffer >= InputPerCycle && OutputBuffer + OutputPerCycle <= MaxBufferSize)
+            {
+                InputBuffer -= InputPerCycle;
+                OutputBuffer += OutputPerCycle;
+                TotalProcessed += OutputPerCycle;
+                Console.WriteLine($"[Furnace] {InputPerCycle}x {InputResource} → {OutputPerCycle}x {OutputResource}");
+            }
         }
         
         public bool AddInput(string resourceType, int amount)
@@ -54,15 +81,30 @@ namespace BeyondIndustry.Factory
             return amountToTake;
         }
         
-        protected override void Process()
+        // ===== SAVEABLE OVERRIDE =====
+        public override Dictionary<string, object> Serialize()
         {
-            if (InputBuffer >= InputPerCycle && OutputBuffer + OutputPerCycle <= MaxBufferSize)
-            {
-                InputBuffer -= InputPerCycle;
-                OutputBuffer += OutputPerCycle;
-                TotalProcessed += OutputPerCycle;
-                Console.WriteLine($"[Furnace] {InputPerCycle}x {InputResource} → {OutputPerCycle}x {OutputResource}");
-            }
+            var data = base.Serialize();
+            data["InputResource"] = InputResource;
+            data["OutputResource"] = OutputResource;
+            data["InputBuffer"] = InputBuffer;
+            data["OutputBuffer"] = OutputBuffer;
+            data["TotalProcessed"] = TotalProcessed;
+            return data;
+        }
+        
+        public override void Deserialize(Dictionary<string, object> data)
+        {
+            base.Deserialize(data);
+            
+            if (data.ContainsKey("InputBuffer"))
+                InputBuffer = Convert.ToInt32(data["InputBuffer"]);
+            
+            if (data.ContainsKey("OutputBuffer"))
+                OutputBuffer = Convert.ToInt32(data["OutputBuffer"]);
+            
+            if (data.ContainsKey("TotalProcessed"))
+                TotalProcessed = Convert.ToInt32(data["TotalProcessed"]);
         }
         
         public override void Draw()
@@ -79,8 +121,6 @@ namespace BeyondIndustry.Factory
                 Color inputColor = ResourceRegistry.GetColor(InputResource);
                 Vector3 inputPos = Position + new Vector3(-0.7f, 1.0f, 0);
                 Raylib.DrawCube(inputPos, 0.2f, 0.2f, 0.2f, inputColor);
-                Raylib.DrawText($"{InputBuffer}", 
-                    (int)(inputPos.X * 50), (int)(inputPos.Y * 50), 12, Color.White);
             }
             
             // Output-Anzeige (rechts)
@@ -89,11 +129,9 @@ namespace BeyondIndustry.Factory
                 Color outputColor = ResourceRegistry.GetColor(OutputResource);
                 Vector3 outputPos = Position + new Vector3(0.7f, 1.0f, 0);
                 Raylib.DrawCube(outputPos, 0.2f, 0.2f, 0.2f, outputColor);
-                Raylib.DrawText($"{OutputBuffer}", 
-                    (int)(outputPos.X * 50), (int)(outputPos.Y * 50), 12, Color.White);
             }
             
-            base.Draw();
+            DrawButton(Data.GlobalData.camera);
         }
         
         public override string GetDebugInfo()
@@ -101,14 +139,12 @@ namespace BeyondIndustry.Factory
             return base.GetDebugInfo() + $" | In:{InputBuffer} Out:{OutputBuffer} | Total:{TotalProcessed}x {OutputResource}";
         }
         
-        // ===== PROVIDER FÜR MASCHINEN-DEFINITIONEN =====
         public class Provider : IMachineProvider
         {
             public List<MachineDefinition> GetDefinitions(Model defaultModel)
             {
                 var definitions = new List<MachineDefinition>();
                 
-                // ===== IRON FURNACE =====
                 var ironDef = new MachineDefinition
                 {
                     Name = "Iron Furnace",
@@ -117,15 +153,14 @@ namespace BeyondIndustry.Factory
                     PreviewColor = new Color(255, 140, 0, 128),
                     Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
-                    
-                    InputResource = "Iron Ore",
-                    OutputResource = "Iron Plate",
+                    InputResource = "IronOre",
+                    OutputResource = "IronPlate",
                     ProductionTime = 3.0f,
                     PowerConsumption = 15f,
                     BufferSize = 10
                 };
                 
-                ironDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, ironDef.Model, "Iron Ore", "Iron Plate")
+                ironDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, ironDef.Model, "IronOre", "IronPlate")
                 {
                     ProductionCycleTime = 3.0f,
                     PowerConsumption = 15f,
@@ -134,7 +169,6 @@ namespace BeyondIndustry.Factory
                 
                 definitions.Add(ironDef);
                 
-                // ===== COPPER FURNACE =====
                 var copperDef = new MachineDefinition
                 {
                     Name = "Copper Furnace",
@@ -143,19 +177,18 @@ namespace BeyondIndustry.Factory
                     PreviewColor = new Color(255, 100, 0, 128),
                     Size = new Vector3(2, 2, 2),
                     YOffset = 0.5f,
-                    
-                    InputResource = "Copper Ore",
-                    OutputResource = "Copper Plate",
+                    InputResource = "CopperOre",
+                    OutputResource = "CopperPlate",
                     ProductionTime = 2.5f,
                     PowerConsumption = 15f,
                     BufferSize = 10
                 };
                 
-                copperDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, copperDef.Model, "Copper Ore", "Copper Plate")
+                copperDef.CreateMachineFunc = (pos) => new FurnaceMachine(pos, copperDef.Model, "CopperOre", "CopperPlate")
                 {
                     ProductionCycleTime = 2.5f,
                     PowerConsumption = 15f,
-                    MaxBufferSize = 10  // <- DAS HAT GEFEHLT!
+                    MaxBufferSize = 10
                 };
                 
                 definitions.Add(copperDef);

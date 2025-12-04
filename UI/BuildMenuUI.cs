@@ -163,7 +163,7 @@ namespace BeyondIndustry.UI
             
             if (selectedItem.Definition.MachineType == "ConveyorBelt")
             {
-                infoText += $" | Press R to rotate [{placementSystem.BeltDirectionNames[placementSystem.BeltRotation]}]";
+              
             }
             
             int textX = startX;

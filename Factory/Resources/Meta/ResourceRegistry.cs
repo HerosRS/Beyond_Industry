@@ -4,30 +4,28 @@ using Raylib_cs;
 
 namespace BeyondIndustry.Factory.Resources
 {
-    // ===== RESSOURCEN-REGISTRY =====
     public static class ResourceRegistry
     {
         private static Dictionary<string, Resource> resources = new Dictionary<string, Resource>();
         
-        // ===== INITIALISIERUNG =====
         public static void Initialize()
         {
             resources.Clear();
             
             Console.WriteLine("[ResourceRegistry] Initialisiere Ressourcen...");
             
-            // ===== HIER ALLE RESSOURCEN REGISTRIEREN =====
-            // Roherze
+            // ===== ROHERZE =====
             Register(new IronOre());
+            Register(new CopperOre());
             Register(new Coal());
             
-            // Verarbeitete Erze
+            // ===== VERARBEITETE ERZE =====
             Register(new IronPlate());
+            //Register(new CopperPlate());
 
             Console.WriteLine($"[ResourceRegistry] {resources.Count} Ressourcen registriert");
         }
         
-        // ===== REGISTRIERUNG =====
         private static void Register(Resource resource)
         {
             if (resources.ContainsKey(resource.Name))
@@ -37,13 +35,18 @@ namespace BeyondIndustry.Factory.Resources
             }
             
             resources[resource.Name] = resource;
-            Console.WriteLine($"[ResourceRegistry] Registriert: {resource.Name} ({resource.DisplayName})");
+            Console.WriteLine($"[ResourceRegistry] Registriert: {resource.DisplayName} ({resource.Name})");
         }
         
-        // ===== ABRUFEN =====
         public static Resource? Get(string name)
         {
-            return resources.GetValueOrDefault(name);
+            if (resources.TryGetValue(name, out Resource? resource))
+            {
+                return resource;
+            }
+            
+            Console.WriteLine($"[ResourceRegistry] WARNUNG: Ressource '{name}' nicht gefunden! Verfügbare: {string.Join(", ", resources.Keys)}");
+            return null;
         }
         
         public static Color GetColor(string name)
@@ -51,7 +54,6 @@ namespace BeyondIndustry.Factory.Resources
             Resource? resource = Get(name);
             if (resource == null)
             {
-                Console.WriteLine($"[ResourceRegistry] WARNUNG: Ressource '{name}' nicht gefunden! Verwende White.");
                 return Color.White;
             }
             return resource.Color;
@@ -86,13 +88,12 @@ namespace BeyondIndustry.Factory.Resources
             return resources.ContainsKey(name);
         }
         
-        // ===== DEBUG =====
         public static void PrintAll()
         {
             Console.WriteLine("\n===== REGISTRIERTE RESSOURCEN =====");
             foreach (var resource in resources.Values)
             {
-                Console.WriteLine($"{resource.Name} ({resource.DisplayName}) - {resource.Type}");
+                Console.WriteLine($"{resource.DisplayName} ({resource.Name}) - {resource.Type} - RGB({resource.Color.R}, {resource.Color.G}, {resource.Color.B})");
             }
             Console.WriteLine("====================================\n");
         }

@@ -6,11 +6,11 @@ namespace BeyondIndustry.Factory.Resources
     {
         public IronOre()
         {
-            Name = "Iron Ore";
+            Name = "IronOre";
             DisplayName = "Eisenerz";
             Color = new Color(139, 69, 19, 255);
             Type = ResourceType.RawOre;
-            Description = "Rohes Eisenerz direkt aus der Mine. Muss geschmolzen werden.";
+            Description = "Rohes Eisen direkt aus der Mine. Muss geschmolzen werden.";
             
             StackSize = 100;
             Weight = 1.0f;
