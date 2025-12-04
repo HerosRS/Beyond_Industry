@@ -70,68 +70,33 @@ namespace BeyondIndustry.Factory
         
         // ===== LADE ALLE DEFINITIONEN VON ALLEN REGISTRIERTEN MASCHINEN =====
         public static List<MachineDefinition> LoadAllDefinitions(Dictionary<string, Model> models)
+{
+    List<MachineDefinition> allDefinitions = new List<MachineDefinition>();
+    
+    foreach (var provider in providers)
+    {
+        List<MachineDefinition> definitions = provider.GetDefinitions(models.GetValueOrDefault("default"));
+        
+        foreach (var def in definitions)
         {
-            List<MachineDefinition> allDefinitions = new List<MachineDefinition>();
+            // ===== HOLE MODEL AUS REGISTRY =====
+            def.Model = ModelRegistry.GetModel(def.MachineType);
             
-            foreach (var provider in providers)
+            // ===== SPEZIALFALL: BELT-TYPEN =====
+            if (def.MachineType == "ConveyorBelt" && def.CustomData != null && def.CustomData.ContainsKey("BeltType"))
             {
-                // Hole Definitionen von diesem Provider
-                List<MachineDefinition> definitions = provider.GetDefinitions(models.GetValueOrDefault("default"));
-                
-                // Weise Modelle zu basierend auf MachineType und CustomData
-                foreach (var def in definitions)
-                {
-                    // ===== NEU: SPEZIELLE BEHANDLUNG FÜR BELT-TYPEN =====
-                    if (def.MachineType == "ConveyorBelt" && def.CustomData != null)
-                    {
-                        if (def.CustomData.ContainsKey("BeltType"))
-                        {
-                            BeltType type = (BeltType)def.CustomData["BeltType"];
-                            
-                            // Versuche spezifisches Belt-Model zu laden
-                            string modelKey = $"ConveyorBelt_{type}";
-                            if (models.ContainsKey(modelKey))
-                            {
-                                def.Model = models[modelKey];
-                                System.Console.WriteLine($"[MachineRegistry] Loaded model for {modelKey}");
-                            }
-                            else if (models.ContainsKey("ConveyorBelt"))
-                            {
-                                def.Model = models["ConveyorBelt"];
-                            }
-                            else if (models.ContainsKey("default"))
-                            {
-                                def.Model = models["default"];
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // ===== STANDARD: VERSUCHE SPEZIFISCHES MODELL ZU FINDEN =====
-                        // 1. Versuche mit vollständigem Namen
-                        if (models.ContainsKey(def.Name))
-                        {
-                            def.Model = models[def.Name];
-                        }
-                        // 2. Versuche mit MachineType
-                        else if (models.ContainsKey(def.MachineType))
-                        {
-                            def.Model = models[def.MachineType];
-                        }
-                        // 3. Fallback zu Default
-                        else if (models.ContainsKey("default"))
-                        {
-                            def.Model = models["default"];
-                        }
-                    }
-                }
-                
-                allDefinitions.AddRange(definitions);
+                BeltType type = (BeltType)def.CustomData["BeltType"];
+                string modelKey = $"ConveyorBelt_{type}";
+                def.Model = ModelRegistry.GetModel(modelKey);
             }
-            
-            System.Console.WriteLine($"[MachineRegistry] {allDefinitions.Count} Maschinen-Definitionen geladen");
-            return allDefinitions;
         }
+        
+        allDefinitions.AddRange(definitions);
+    }
+    
+    System.Console.WriteLine($"[MachineRegistry] {allDefinitions.Count} Maschinen-Definitionen geladen");
+    return allDefinitions;
+}
         
         // ===== INITIALISIERE ALLE MASCHINEN =====
         // Diese Methode wird einmal beim Start aufgerufen
@@ -143,6 +108,7 @@ namespace BeyondIndustry.Factory
             RegisterProvider(new MiningMachine.Provider());
             RegisterProvider(new FurnaceMachine.Provider());
             RegisterProvider(new ConveyorBelt.Provider());
+            RegisterProvider(new T_Traeger_Vertikal.Provider());
             // Weitere Maschinen hier hinzufügen...
             
             System.Console.WriteLine($"[MachineRegistry] {providers.Count} Provider registriert");

@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Collections.Generic;
 using Raylib_cs;
 using BeyondIndustry.Factory.Resources;
+using BeyondIndustry.Data;
 
 namespace BeyondIndustry.Factory
 {
@@ -54,7 +55,6 @@ namespace BeyondIndustry.Factory
         public float MinItemSpacing { get; set; } = 0.33f;
         public float BeltLength { get; set; } = 1.0f;
         
-        // ===== NEU: EINSTELLBARER KURVEN-RADIUS =====
         public float CurveRadius { get; set; } = 0.5f;
         
         private List<ConveyorItem> items = new List<ConveyorItem>();
@@ -288,7 +288,12 @@ namespace BeyondIndustry.Factory
             {
                 int taken = miner.TakeOutput(1);
                 if (taken > 0)
-                    AddItem(miner.ResourceType, taken);
+                {
+                    if (AddItem(miner.ResourceType, taken))
+                    {
+                        Console.WriteLine($"[Belt] Picked up {taken}x {miner.ResourceType} from Miner");
+                    }
+                }
             }
             else if (InputMachine is FurnaceMachine furnace && furnace.OutputBuffer > 0)
             {
@@ -320,10 +325,71 @@ namespace BeyondIndustry.Factory
             
             return false;
         }
+        
         public List<ConveyorItem> GetItems()
         {
             return new List<ConveyorItem>(items);
         }
+        
+        // ===== SAVEABLE OVERRIDE =====
+        public override Dictionary<string, object> Serialize()
+        {
+            var data = base.Serialize();
+            data["BeltType"] = Type.ToString();
+            data["Direction"] = new Dictionary<string, float>
+            {
+                { "X", Direction.X },
+                { "Y", Direction.Y },
+                { "Z", Direction.Z }
+            };
+            data["BeltSpeed"] = BeltSpeed;
+            data["CurveRadius"] = CurveRadius;
+            
+            // Items serialisieren
+            var itemsList = new List<Dictionary<string, object>>();
+            foreach (var item in items)
+            {
+                itemsList.Add(new Dictionary<string, object>
+                {
+                    { "ResourceType", item.ResourceType },
+                    { "Amount", item.Amount },
+                    { "Progress", item.Progress }
+                });
+            }
+            data["Items"] = itemsList;
+            
+            return data;
+        }
+        
+        public override void Deserialize(Dictionary<string, object> data)
+        {
+            base.Deserialize(data);
+            
+            if (data.ContainsKey("BeltSpeed"))
+                BeltSpeed = Convert.ToSingle(data["BeltSpeed"]);
+            
+            if (data.ContainsKey("CurveRadius"))
+                CurveRadius = Convert.ToSingle(data["CurveRadius"]);
+            
+            // Items deserialisieren
+            if (data.ContainsKey("Items") && data["Items"] is List<object> itemsList)
+            {
+                items.Clear();
+                foreach (var itemObj in itemsList)
+                {
+                    if (itemObj is Dictionary<string, object> itemData)
+                    {
+                        var item = new ConveyorItem(
+                            itemData["ResourceType"].ToString() ?? "",
+                            Convert.ToInt32(itemData["Amount"])
+                        );
+                        item.Progress = Convert.ToSingle(itemData["Progress"]);
+                        items.Add(item);
+                    }
+                }
+            }
+        }
+        
         public override void Draw()
         {
             DrawBeltModel();
@@ -332,7 +398,7 @@ namespace BeyondIndustry.Factory
             if (Data.GlobalData.ShowDebugInfo)
                 DrawConnections();
             
-            base.Draw();
+            DrawButton(Data.GlobalData.camera);
         }
         
         private void DrawBeltModel()
@@ -395,6 +461,7 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawSphere(pos1, 0.03f, pathColor);
             }
         }
+        
         private float CalculateRotationAngle()
         {
             float baseAngle = (float)(Math.Atan2(Direction.X, Direction.Z) * (180.0 / Math.PI));
@@ -519,18 +586,31 @@ namespace BeyondIndustry.Factory
         // ===== VERBINDUNGEN (ERWEITERT) =====
         private void DrawConnections()
         {
-            float sphereSize = 0.1f;
-            
+            // ===== VERBINDUNGS-LINIEN ZEICHNEN =====
             if (InputMachine != null)
             {
                 Vector3 inputPos = CalculateItemPosition(SpawnPoint);
-                Raylib.DrawSphere(inputPos, sphereSize, new Color(0, 255, 0, 255));
+                Raylib.DrawLine3D(InputMachine.Position + new Vector3(0, 1, 0), inputPos, Color.Green);
+                Raylib.DrawSphere(inputPos, 0.15f, Color.Green);
+                
+                if (Data.GlobalData.ShowDebugInfo)
+                {
+                    Vector2 screenPos = Raylib.GetWorldToScreen(inputPos, Data.GlobalData.camera);
+                    Raylib.DrawText($"IN: {InputMachine.MachineType}", (int)screenPos.X - 50, (int)screenPos.Y, 12, Color.Green);
+                }
             }
             
             if (OutputMachine != null)
             {
                 Vector3 outputPos = CalculateItemPosition(EndPoint);
-                Raylib.DrawSphere(outputPos, sphereSize, new Color(0, 100, 255, 255));
+                Raylib.DrawLine3D(outputPos, OutputMachine.Position + new Vector3(0, 1, 0), Color.Blue);
+                Raylib.DrawSphere(outputPos, 0.15f, Color.Blue);
+                
+                if (Data.GlobalData.ShowDebugInfo)
+                {
+                    Vector2 screenPos = Raylib.GetWorldToScreen(outputPos, Data.GlobalData.camera);
+                    Raylib.DrawText($"OUT: {OutputMachine.MachineType}", (int)screenPos.X - 50, (int)screenPos.Y, 12, Color.Blue);
+                }
             }
             
             if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
@@ -594,9 +674,9 @@ namespace BeyondIndustry.Factory
             }
             
             if (InputMachine != null)
-                info += $" | In";
+                info += $" | In: {InputMachine.MachineType}";
             if (OutputMachine != null)
-                info += $" | Out";
+                info += $" | Out: {OutputMachine.MachineType}";
             
             return info;
         }

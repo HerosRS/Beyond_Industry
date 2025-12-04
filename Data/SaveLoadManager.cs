@@ -84,17 +84,18 @@ namespace BeyondIndustry.Data
                 string json = JsonSerializer.Serialize(saveData, JsonOptions);
                 File.WriteAllText(filePath, json);
                 
-                Console.WriteLine($"[SaveLoad] ✓ Saved {saveData.Machines.Count} machines");
+                Console.WriteLine($"[SaveLoad] ✓ Saved {saveData.Machines.Count} machines to {filePath}");
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SaveLoad] ✗ ERROR: {ex.Message}");
+                Console.WriteLine($"[SaveLoad] ✗ SAVE ERROR: {ex.Message}");
+                Console.WriteLine($"[SaveLoad]   Stack: {ex.StackTrace}");
                 return false;
             }
         }
         
-        // ===== LOAD GAME - AUTOMATISCH! =====
+        // ===== LOAD GAME - AUTOMATISCH MIT JsonElement FIX! =====
         public static bool LoadGame(string saveName, FactoryManager factoryManager, CameraController cameraController, Dictionary<string, Model> modelMap)
         {
             try
@@ -103,7 +104,7 @@ namespace BeyondIndustry.Data
                 
                 if (!File.Exists(filePath))
                 {
-                    Console.WriteLine($"[SaveLoad] ✗ Save not found");
+                    Console.WriteLine($"[SaveLoad] ✗ Save not found: {filePath}");
                     return false;
                 }
                 
@@ -112,7 +113,11 @@ namespace BeyondIndustry.Data
                 string json = File.ReadAllText(filePath);
                 GameSaveData? saveData = JsonSerializer.Deserialize<GameSaveData>(json, JsonOptions);
                 
-                if (saveData == null) return false;
+                if (saveData == null)
+                {
+                    Console.WriteLine($"[SaveLoad] ✗ Failed to deserialize");
+                    return false;
+                }
                 
                 // Lösche aktuelle Factory
                 factoryManager.Clear();
@@ -122,9 +127,13 @@ namespace BeyondIndustry.Data
                 foreach (var machineData in saveData.Machines)
                 {
                     FactoryMachine? machine = CreateMachineFromData(machineData, modelMap);
+                    
                     if (machine != null && machine is ISaveable saveable)
                     {
-                        saveable.Deserialize(machineData.Properties);
+                        // ===== FIX: KONVERTIERE JsonElement PROPERTIES! =====
+                        var convertedProperties = ConvertJsonElementProperties(machineData.Properties);
+                        saveable.Deserialize(convertedProperties);
+                        
                         factoryManager.AddMachine(machine);
                         loadedMachines.Add(machine);
                     }
@@ -149,8 +158,72 @@ namespace BeyondIndustry.Data
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SaveLoad] ✗ ERROR: {ex.Message}");
+                Console.WriteLine($"[SaveLoad] ✗ LOAD ERROR: {ex.Message}");
+                Console.WriteLine($"[SaveLoad]   Stack: {ex.StackTrace}");
                 return false;
+            }
+        }
+        
+        // ===== NEU: JsonElement KONVERTER =====
+        private static Dictionary<string, object> ConvertJsonElementProperties(Dictionary<string, object> properties)
+        {
+            var converted = new Dictionary<string, object>();
+            
+            foreach (var kvp in properties)
+            {
+                if (kvp.Value is JsonElement element)
+                {
+                    converted[kvp.Key] = ConvertJsonElement(element);
+                }
+                else
+                {
+                    converted[kvp.Key] = kvp.Value;
+                }
+            }
+            
+            return converted;
+        }
+        
+        private static object ConvertJsonElement(JsonElement element)
+        {
+            switch (element.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return element.GetString() ?? "";
+                
+                case JsonValueKind.Number:
+                    // Versuche Int zuerst, dann Float, dann Double
+                    if (element.TryGetInt32(out int intValue))
+                        return intValue;
+                    if (element.TryGetSingle(out float floatValue))
+                        return floatValue;
+                    return element.GetDouble();
+                
+                case JsonValueKind.True:
+                    return true;
+                
+                case JsonValueKind.False:
+                    return false;
+                
+                case JsonValueKind.Array:
+                    var list = new List<object>();
+                    foreach (var item in element.EnumerateArray())
+                    {
+                        list.Add(ConvertJsonElement(item));
+                    }
+                    return list;
+                
+                case JsonValueKind.Object:
+                    var dict = new Dictionary<string, object>();
+                    foreach (var prop in element.EnumerateObject())
+                    {
+                        dict[prop.Name] = ConvertJsonElement(prop.Value);
+                    }
+                    return dict;
+                
+                case JsonValueKind.Null:
+                default:
+                    return null!;
             }
         }
         
@@ -160,8 +233,8 @@ namespace BeyondIndustry.Data
             Vector3 position = data.Position.ToVector3();
             Model model = modelMap.GetValueOrDefault("default");
             
-            // Hole gespeicherte Properties
-            var props = data.Properties;
+            // ===== FIX: KONVERTIERE PROPERTIES VOR VERWENDUNG =====
+            var props = ConvertJsonElementProperties(data.Properties);
             
             switch (data.MachineType)
             {
@@ -181,6 +254,16 @@ namespace BeyondIndustry.Data
                     string output = props.ContainsKey("OutputResource") ? props["OutputResource"].ToString() ?? "IronPlate" : "IronPlate";
                     return new FurnaceMachine(position, model, input, output);
                 
+                case "Copper_Furnace":
+                    model = modelMap.GetValueOrDefault("Copper_Furnace", model);
+                    string copperInput = props.ContainsKey("InputResource") ? props["InputResource"].ToString() ?? "CopperOre" : "CopperOre";
+                    string copperOutput = props.ContainsKey("OutputResource") ? props["OutputResource"].ToString() ?? "CopperPlate" : "CopperPlate";
+                    return new FurnaceMachine(position, model, copperInput, copperOutput);
+
+                case "T_Traeger_Vertikal":
+                    model = modelMap.GetValueOrDefault("T_Traeger_Vertikal", model);
+                    return new T_Traeger_Vertikal(position, model, 3.0f);
+                    
                 case "ConveyorBelt":
                     BeltType type = BeltType.Straight;
                     if (props.ContainsKey("BeltType") && Enum.TryParse(props["BeltType"].ToString(), out BeltType parsedType))
@@ -189,19 +272,29 @@ namespace BeyondIndustry.Data
                     }
                     
                     Vector3 direction = new Vector3(1, 0, 0);
-                    if (props.ContainsKey("Direction"))
+                    if (props.ContainsKey("Direction") && props["Direction"] is Dictionary<string, object> dirDict)
                     {
-                        var dirData = props["Direction"];
-                        // Parse direction from nested object
+                        float x = Convert.ToSingle(dirDict["X"]);
+                        float y = Convert.ToSingle(dirDict["Y"]);
+                        float z = Convert.ToSingle(dirDict["Z"]);
+                        direction = new Vector3(x, y, z);
                     }
                     
-                    string modelKey = $"ConveyorBelt_{type}";
-                    model = modelMap.GetValueOrDefault(modelKey, modelMap.GetValueOrDefault("ConveyorBelt", model));
+                    string modelKey = type switch
+                    {
+                        BeltType.CurveLeft => "belt_curve_left",
+                        BeltType.CurveRight => "belt_curve_right",
+                        BeltType.RampUp => "belt_ramp_up",
+                        BeltType.RampDown => "belt_ramp_down",
+                        _ => "belt_straight"
+                    };
+                    
+                    model = modelMap.GetValueOrDefault(modelKey, modelMap.GetValueOrDefault("default", model));
                     
                     return new ConveyorBelt(position, model, direction, type);
                 
                 default:
-                    Console.WriteLine($"[SaveLoad] Unknown type: {data.MachineType}");
+                    Console.WriteLine($"[SaveLoad] ✗ Unknown type: {data.MachineType}");
                     return null;
             }
         }
@@ -233,10 +326,16 @@ namespace BeyondIndustry.Data
                 if (connection.BeltIndex >= 0 && connection.BeltIndex < machines.Count && machines[connection.BeltIndex] is ConveyorBelt belt)
                 {
                     if (connection.InputMachineIndex.HasValue && connection.InputMachineIndex.Value >= 0 && connection.InputMachineIndex.Value < machines.Count)
+                    {
                         belt.InputMachine = machines[connection.InputMachineIndex.Value];
+                        Console.WriteLine($"[SaveLoad] Belt {connection.BeltIndex} → Input: {belt.InputMachine.MachineType}");
+                    }
                     
                     if (connection.OutputMachineIndex.HasValue && connection.OutputMachineIndex.Value >= 0 && connection.OutputMachineIndex.Value < machines.Count)
+                    {
                         belt.OutputMachine = machines[connection.OutputMachineIndex.Value];
+                        Console.WriteLine($"[SaveLoad] Belt {connection.BeltIndex} → Output: {belt.OutputMachine.MachineType}");
+                    }
                 }
             }
         }
@@ -261,12 +360,14 @@ namespace BeyondIndustry.Data
                 if (File.Exists(filePath))
                 {
                     File.Delete(filePath);
+                    Console.WriteLine($"[SaveLoad] Deleted: {saveName}");
                     return true;
                 }
                 return false;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"[SaveLoad] Delete failed: {ex.Message}");
                 return false;
             }
         }

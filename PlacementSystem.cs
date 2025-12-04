@@ -374,16 +374,41 @@ namespace BeyondIndustry
                     currentBeltDirection,
                     type
                 );
+                
+                if (newMachine is ConveyorBelt newBelt)
+                {
+                    BeltConnectionHelper.ConnectBelt(newBelt, factoryManager.GetAllMachines());
+                }
+                
+                BeltConnectionHelper.UpdateAllConnections(factoryManager);
+            }
+            // ===== NEU: T-TRÄGER =====
+            else if (currentDef.MachineType == "T_Traeger_Vertikal")
+            {
+                newMachine = new T_Traeger_Vertikal(PreviewPosition, currentDef.Model, 3.0f);
             }
             else
             {
-                newMachine = CreateMachineFromDefinition(currentDef, PreviewPosition);
+                // Normale Maschinen (Miner, Furnace, etc.)
+                if (currentDef.CreateMachineFunc != null)
+                {
+                    newMachine = currentDef.CreateMachineFunc(PreviewPosition);
+                }
+                else
+                {
+                    Console.WriteLine($"[Placement] ERROR: No CreateMachineFunc for {currentDef.MachineType}");
+                    return;
+                }
             }
             
             if (newMachine != null)
             {
                 factoryManager.AddMachine(newMachine);
                 Console.WriteLine($"[Placement] Placed {currentDef.Name} at {PreviewPosition} (Layer {CurrentLayer})");
+            }
+            else
+            {
+                Console.WriteLine($"[Placement] ERROR: Failed to create machine {currentDef.MachineType}");
             }
         }
         
