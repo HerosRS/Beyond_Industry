@@ -74,7 +74,7 @@ namespace BeyondIndustry.Factory
                     Model = defaultModel,
                     PreviewColor = new Color(80, 80, 80, 128),
                     Size = new Vector3(1, 2, 1),
-                    YOffset = 0.5f,
+                    YOffset = 0f,
                     PowerConsumption = 0f
                 };
                 

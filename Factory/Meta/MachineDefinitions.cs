@@ -108,7 +108,8 @@ namespace BeyondIndustry.Factory
             RegisterProvider(new MiningMachine.Provider());
             RegisterProvider(new FurnaceMachine.Provider());
             RegisterProvider(new ConveyorBelt.Provider());
-            RegisterProvider(new T_Traeger_Vertikal.Provider());
+            RegisterProvider(new T_Traeger_Gerade.Provider());
+            RegisterProvider(new T_Traeger_Ecke.Provider());
             // Weitere Maschinen hier hinzufügen...
             
             System.Console.WriteLine($"[MachineRegistry] {providers.Count} Provider registriert");

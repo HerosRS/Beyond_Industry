@@ -73,7 +73,7 @@ namespace BeyondIndustry.Factory
                     MachineType = "T_Traeger_Ecke",
                     Model = defaultModel,
                     PreviewColor = new Color(80, 80, 80, 128),
-                    Size = new Vector3(1, 2, 1),
+                    Size = new Vector3(2, 1, 1),
                     YOffset = 0.5f,
                     PowerConsumption = 0f
                 };
