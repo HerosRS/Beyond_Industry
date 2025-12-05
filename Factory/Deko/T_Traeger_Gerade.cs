@@ -7,15 +7,15 @@ using BeyondIndustry.Data;
 namespace BeyondIndustry.Factory
 {
     // ===== DEKOELEMENT: T-TRÄGER VERTIKAL =====
-    public class T_Traeger_Vertikal : FactoryMachine
+    public class T_Traeger_Gerade : FactoryMachine
     {
         public float Height { get; set; } = 1.0f;
         public Color TintColor { get; set; } = Color.White;
         
-        public T_Traeger_Vertikal(Vector3 position, Model model, float height = 3.0f) 
+        public T_Traeger_Gerade(Vector3 position, Model model, float height = 3.0f) 
             : base(position, model)
         {
-            MachineType = "T_Traeger_Vertikal";
+            MachineType = "T_Traeger_Gerade";
             Height = height;
             PowerConsumption = 0f;
             ProductionCycleTime = 0f;
@@ -69,8 +69,8 @@ namespace BeyondIndustry.Factory
                 
                 var beamDef = new MachineDefinition
                 {
-                    Name = "T-Träger Vertikal",
-                    MachineType = "T_Traeger_Vertikal",
+                    Name = "T-Träger Gerade",
+                    MachineType = "T_Traeger_Gerade",
                     Model = defaultModel,
                     PreviewColor = new Color(80, 80, 80, 128),
                     Size = new Vector3(1, 2, 1),
@@ -78,7 +78,7 @@ namespace BeyondIndustry.Factory
                     PowerConsumption = 0f
                 };
                 
-                beamDef.CreateMachineFunc = (pos) => new T_Traeger_Vertikal(pos, beamDef.Model, 3.0f);
+                beamDef.CreateMachineFunc = (pos) => new T_Traeger_Gerade(pos, beamDef.Model, 3.0f);
                 definitions.Add(beamDef);
                 
                 return definitions;

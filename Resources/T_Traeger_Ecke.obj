@@ -1,6 +1,6 @@
 # Blender 5.0.0
 # www.blender.org
-mtllib T_Träger_Ecke.mtl
+mtllib T_Traeger_Ecke.mtl
 o T-Träger_4
 v -7.000000 0.000000 -2.466666
 v -7.000000 0.060000 -2.466666
