@@ -33,10 +33,10 @@ namespace BeyondIndustry.Factory
             // ===== FÖRDERBAND-SYSTEM =====
             new ModelDefinition("ConveyorBelt", @"..\..\..\Resources\Belt.obj"),
             new ModelDefinition("ConveyorBelt_Straight", @"..\..\..\Resources\Belt.obj"),
-            new ModelDefinition("ConveyorBelt_CurveLeft", @"..\..\..\Resources\Belt.obj"),   // TODO: Eigenes Model
-            new ModelDefinition("ConveyorBelt_CurveRight", @"..\..\..\Resources\Belt.obj"),  // TODO: Eigenes Model
-            new ModelDefinition("ConveyorBelt_RampUp", @"..\..\..\Resources\Belt.obj"),
-            new ModelDefinition("ConveyorBelt_RampDown", @"..\..\..\Resources\Belt.obj"),
+            new ModelDefinition("ConveyorBelt_CurveLeft", @"..\..\..\Resources\belt_curve_left.obj"),   // TODO: Eigenes Model
+            new ModelDefinition("ConveyorBelt_CurveRight", @"..\..\..\Resources\belt_curve_right.obj"),  // TODO: Eigenes Model
+            new ModelDefinition("ConveyorBelt_RampUp", @"..\..\..\Resources\belt_streight_up.obj"),
+            new ModelDefinition("ConveyorBelt_RampDown", @"..\..\..\Resources\belt_streight_down.obj"),
             
             // ===== STRUKTUREN & DEKO =====
             new ModelDefinition("T_Traeger_Vertikal", @"..\..\..\Resources\T_Traeger_Vertikal.obj"),

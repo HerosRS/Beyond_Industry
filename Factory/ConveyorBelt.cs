@@ -7,12 +7,13 @@ using BeyondIndustry.Data;
 
 namespace BeyondIndustry.Factory
 {
+    
     public class ConveyorItem
     {
         public string ResourceType { get; set; }
         public int Amount { get; set; }
         public float Progress { get; set; }
-        
+         
         public ConveyorItem(string resourceType, int amount)
         {
             ResourceType = resourceType;
@@ -36,6 +37,8 @@ namespace BeyondIndustry.Factory
     
     public class ConveyorBelt : FactoryMachine
     {
+        public Vector3 DebugNodeOffset { get; set; } = Vector3.Zero;
+    public bool ShowDebugNode { get; set; } = true;
         // ===== VERBINDUNGEN =====
         public FactoryMachine? InputMachine { get; set; }
         public FactoryMachine? OutputMachine { get; set; }
@@ -123,80 +126,161 @@ namespace BeyondIndustry.Factory
         }
         
         // ===== LIVE DEBUG INPUT (ERWEITERT) =====
-        private void HandleDebugInput()
+        // ===== LIVE DEBUG INPUT (ERWEITERT) =====
+// ===== LIVE DEBUG INPUT (ERWEITERT) =====
+private void HandleDebugInput()
+{
+    if (!IsNearMouse()) return;
+    
+    float adjustSpeed = 0.01f;
+    float nodeAdjustSpeed = 0.05f;  // Schneller für Node-Bewegung
+    
+    // ===== RAMPEN: DEBUG NODE POSITION ANPASSEN =====
+    if (Type == BeltType.RampUp || Type == BeltType.RampDown)
+    {
+        bool nodeChanged = false;
+        Vector3 newOffset = DebugNodeOffset;  // Kopie erstellen
+        
+        // LINKS/RECHTS (X-Achse)
+        if (Raylib.IsKeyDown(KeyboardKey.Left))
         {
-            if (!IsNearMouse()) return;
-            
-            float adjustSpeed = 0.01f;
-            
-            // Numpad 7/4 - SpawnPoint anpassen
-            if (Raylib.IsKeyDown(KeyboardKey.Kp7))
-            {
-                SpawnPoint += adjustSpeed;
-                if (SpawnPoint > EndPoint - MinItemSpacing) SpawnPoint = EndPoint - MinItemSpacing;
-                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
-            }
-            if (Raylib.IsKeyDown(KeyboardKey.Kp4))
-            {
-                SpawnPoint -= adjustSpeed;
-                Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
-            }
-            
-            // Numpad 9/6 - EndPoint anpassen
-            if (Raylib.IsKeyDown(KeyboardKey.Kp9))
-            {
-                EndPoint += adjustSpeed;
-                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
-            }
-            if (Raylib.IsKeyDown(KeyboardKey.Kp6))
-            {
-                EndPoint -= adjustSpeed;
-                if (EndPoint < SpawnPoint + MinItemSpacing) EndPoint = SpawnPoint + MinItemSpacing;
-                Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
-            }
-            
-            // Numpad 8/5 - MinItemSpacing anpassen
-            if (Raylib.IsKeyDown(KeyboardKey.Kp8))
-            {
-                MinItemSpacing += adjustSpeed;
-                if (MinItemSpacing > 1.0f) MinItemSpacing = 1.0f;
-                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
-            }
-            if (Raylib.IsKeyDown(KeyboardKey.Kp5))
-            {
-                MinItemSpacing -= adjustSpeed;
-                if (MinItemSpacing < 0.05f) MinItemSpacing = 0.05f;
-                Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
-            }
-            
-            // ===== NEU: Numpad 1/2 - KURVEN-RADIUS anpassen (nur für Kurven) =====
-            if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
-            {
-                if (Raylib.IsKeyDown(KeyboardKey.Kp1))
-                {
-                    CurveRadius += adjustSpeed * 2;
-                    if (CurveRadius > 2.0f) CurveRadius = 2.0f;
-                    Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
-                }
-                if (Raylib.IsKeyDown(KeyboardKey.Kp2))
-                {
-                    CurveRadius -= adjustSpeed * 2;
-                    if (CurveRadius < 0.1f) CurveRadius = 0.1f;
-                    Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
-                }
-            }
-            
-            // Numpad 0 - Reset zu optimalen Werten
-            if (Raylib.IsKeyPressed(KeyboardKey.Kp0))
-            {
-                SpawnPoint = -0.5f;
-                EndPoint = 1.5f;
-                MinItemSpacing = 0.33f;
-                CurveRadius = 0.5f;
-                Console.WriteLine($"[Belt] Reset zu optimalen Werten");
-            }
+            newOffset.X -= nodeAdjustSpeed;
+            nodeChanged = true;
+        }
+        if (Raylib.IsKeyDown(KeyboardKey.Right))
+        {
+            newOffset.X += nodeAdjustSpeed;
+            nodeChanged = true;
         }
         
+        // HOCH/RUNTER (Y-Achse)
+        if (Raylib.IsKeyDown(KeyboardKey.Up))
+        {
+            newOffset.Y += nodeAdjustSpeed;
+            nodeChanged = true;
+        }
+        if (Raylib.IsKeyDown(KeyboardKey.Down))
+        {
+            newOffset.Y -= nodeAdjustSpeed;
+            nodeChanged = true;
+        }
+        
+        // VORNE/HINTEN (Z-Achse)
+        if (Raylib.IsKeyDown(KeyboardKey.PageUp))
+        {
+            newOffset.Z += nodeAdjustSpeed;
+            nodeChanged = true;
+        }
+        if (Raylib.IsKeyDown(KeyboardKey.PageDown))
+        {
+            newOffset.Z -= nodeAdjustSpeed;
+            nodeChanged = true;
+        }
+        
+        // Weise neuen Offset zu
+        if (nodeChanged)
+        {
+            DebugNodeOffset = newOffset;
+            Console.WriteLine($"[Belt-{Type}] DebugNodeOffset: X={DebugNodeOffset.X:F3}, Y={DebugNodeOffset.Y:F3}, Z={DebugNodeOffset.Z:F3}");
+        }
+        
+        // RESET NODE POSITION
+        if (Raylib.IsKeyPressed(KeyboardKey.End))
+        {
+            DebugNodeOffset = Vector3.Zero;
+            Console.WriteLine($"[Belt-{Type}] DebugNodeOffset RESET");
+        }
+        
+        // AUSGABE AKTUELLER POSITION
+        if (Raylib.IsKeyPressed(KeyboardKey.P))
+        {
+            Console.WriteLine("=================================");
+            Console.WriteLine($"[Belt-{Type}] DEBUG NODE POSITION:");
+            Console.WriteLine($"  Offset X: {DebugNodeOffset.X:F3}");
+            Console.WriteLine($"  Offset Y: {DebugNodeOffset.Y:F3}");
+            Console.WriteLine($"  Offset Z: {DebugNodeOffset.Z:F3}");
+            Console.WriteLine($"  World Pos: {(Position + DebugNodeOffset).X:F2}, {(Position + DebugNodeOffset).Y:F2}, {(Position + DebugNodeOffset).Z:F2}");
+            Console.WriteLine("=================================");
+        }
+        
+        // TOGGLE DEBUG NODE SICHTBARKEIT
+        if (Raylib.IsKeyPressed(KeyboardKey.V))
+        {
+            ShowDebugNode = !ShowDebugNode;
+            Console.WriteLine($"[Belt-{Type}] ShowDebugNode: {ShowDebugNode}");
+        }
+    }
+    
+    // ===== STANDARD BELT CONTROLS =====
+    
+    // Numpad 7/4 - SpawnPoint anpassen
+    if (Raylib.IsKeyDown(KeyboardKey.Kp7))
+    {
+        SpawnPoint += adjustSpeed;
+        if (SpawnPoint > EndPoint - MinItemSpacing) SpawnPoint = EndPoint - MinItemSpacing;
+        Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
+    }
+    if (Raylib.IsKeyDown(KeyboardKey.Kp4))
+    {
+        SpawnPoint -= adjustSpeed;
+        Console.WriteLine($"[Belt] SpawnPoint: {SpawnPoint:F3}");
+    }
+    
+    // Numpad 9/6 - EndPoint anpassen
+    if (Raylib.IsKeyDown(KeyboardKey.Kp9))
+    {
+        EndPoint += adjustSpeed;
+        Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
+    }
+    if (Raylib.IsKeyDown(KeyboardKey.Kp6))
+    {
+        EndPoint -= adjustSpeed;
+        if (EndPoint < SpawnPoint + MinItemSpacing) EndPoint = SpawnPoint + MinItemSpacing;
+        Console.WriteLine($"[Belt] EndPoint: {EndPoint:F3}");
+    }
+    
+    // Numpad 8/5 - MinItemSpacing anpassen
+    if (Raylib.IsKeyDown(KeyboardKey.Kp8))
+    {
+        MinItemSpacing += adjustSpeed;
+        if (MinItemSpacing > 1.0f) MinItemSpacing = 1.0f;
+        Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
+    }
+    if (Raylib.IsKeyDown(KeyboardKey.Kp5))
+    {
+        MinItemSpacing -= adjustSpeed;
+        if (MinItemSpacing < 0.05f) MinItemSpacing = 0.05f;
+        Console.WriteLine($"[Belt] MinItemSpacing: {MinItemSpacing:F3}");
+    }
+    
+    // Numpad 1/2 - KURVEN-RADIUS anpassen (nur für Kurven)
+    if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+    {
+        if (Raylib.IsKeyDown(KeyboardKey.Kp1))
+        {
+            CurveRadius += adjustSpeed * 2;
+            if (CurveRadius > 2.0f) CurveRadius = 2.0f;
+            Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
+        }
+        if (Raylib.IsKeyDown(KeyboardKey.Kp2))
+        {
+            CurveRadius -= adjustSpeed * 2;
+            if (CurveRadius < 0.1f) CurveRadius = 0.1f;
+            Console.WriteLine($"[Belt] CurveRadius: {CurveRadius:F3}");
+        }
+    }
+    
+    // Numpad 0 - Reset zu optimalen Werten
+    if (Raylib.IsKeyPressed(KeyboardKey.Kp0))
+    {
+        SpawnPoint = -0.5f;
+        EndPoint = 1.5f;
+        MinItemSpacing = 0.33f;
+        CurveRadius = 0.5f;
+        DebugNodeOffset = Vector3.Zero;
+        Console.WriteLine($"[Belt] Reset zu optimalen Werten");
+    }
+}
         private bool IsNearMouse()
         {
             Ray mouseRay = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), Data.GlobalData.camera);
@@ -443,42 +527,87 @@ namespace BeyondIndustry.Factory
         }
         
         private void DrawBeltModel()
+{
+    float rotationAngle = CalculateRotationAngle();
+    Vector3 rotationAxis = new Vector3(0, 1, 0);
+    
+    // ===== DEBUG NODE FÜR RAMPEN =====
+    if (Data.GlobalData.ShowDebugInfo && ShowDebugNode && 
+        (Type == BeltType.RampUp || Type == BeltType.RampDown))
+    {
+        // Berechne Debug Node Position mit Offset
+        Vector3 nodePos = Position + DebugNodeOffset;
+        
+        // Zeichne Haupt-Sphere (größer und auffälliger)
+        Raylib.DrawSphere(nodePos, 0.15f, Color.Yellow);
+        Raylib.DrawSphereWires(nodePos, 0.17f, 8, 8, Color.Orange);
+        
+        // Zeichne Achsen-Linien
+        float axisLength = 0.5f;
+        
+        // X-Achse (Rot) - Links/Rechts
+        Raylib.DrawLine3D(nodePos, nodePos + new Vector3(axisLength, 0, 0), Color.Red);
+        Raylib.DrawSphere(nodePos + new Vector3(axisLength, 0, 0), 0.05f, Color.Red);
+        
+        // Y-Achse (Grün) - Hoch/Runter
+        Raylib.DrawLine3D(nodePos, nodePos + new Vector3(0, axisLength, 0), Color.Green);
+        Raylib.DrawSphere(nodePos + new Vector3(0, axisLength, 0), 0.05f, Color.Green);
+        
+        // Z-Achse (Blau) - Vorne/Hinten
+        Raylib.DrawLine3D(nodePos, nodePos + new Vector3(0, 0, axisLength), Color.Blue);
+        Raylib.DrawSphere(nodePos + new Vector3(0, 0, axisLength), 0.05f, Color.Blue);
+        
+        // Verbindung zur Belt-Position
+        Raylib.DrawLine3D(Position, nodePos, new Color(255, 255, 255, 100));
+        
+        // On-Screen Info
+        if (IsNearMouse())
         {
-            float rotationAngle = CalculateRotationAngle();
-            Vector3 rotationAxis = new Vector3(0, 1, 0);
+            Vector2 screenPos = Raylib.GetWorldToScreen(nodePos, Data.GlobalData.camera);
+            int textY = (int)screenPos.Y - 100;
             
-            // Debug
-            if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
-            {
-                Vector3 arrowStart = Position;
-                arrowStart.Y += ItemHeight + 1.5f;
-                Vector3 arrowEnd = arrowStart + Direction * 0.5f;
-                
-                Raylib.DrawLine3D(arrowStart, arrowEnd, Color.Orange);
-                Raylib.DrawSphere(arrowEnd, 0.05f, Color.Orange);
-                
-                if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
-                {
-                    Vector3 secondaryArrowEnd = arrowStart + SecondaryDirection * 0.5f;
-                    Raylib.DrawLine3D(arrowStart, secondaryArrowEnd, Color.Purple);
-                    Raylib.DrawSphere(secondaryArrowEnd, 0.05f, Color.Purple);
-                }
-                
-                Vector2 screenPos = Raylib.GetWorldToScreen(arrowStart, Data.GlobalData.camera);
-                Raylib.DrawText($"Type: {Type}", (int)screenPos.X - 30, (int)screenPos.Y - 75, 12, Color.Orange);
-                Raylib.DrawText($"Rot: {rotationAngle:F0}°", (int)screenPos.X - 30, (int)screenPos.Y - 60, 12, Color.Orange);
-            }
-            
-            // Zeichne Model (jetzt mit richtigen Models!)
-            Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, Color.White);
-            
-            // ===== ZUSÄTZLICHE VISUELLE PFAD-MARKER FÜR KURVEN =====
-            if ((Type == BeltType.CurveLeft || Type == BeltType.CurveRight) && Data.GlobalData.ShowDebugInfo)
-            {
-                DrawCurvePath();
-            }
+            Raylib.DrawText($"=== DEBUG NODE ({Type}) ===", (int)screenPos.X - 80, textY, 14, Color.Yellow);
+            textY += 18;
+            Raylib.DrawText($"Offset X: {DebugNodeOffset.X:F3}", (int)screenPos.X - 80, textY, 12, Color.Red);
+            textY += 15;
+            Raylib.DrawText($"Offset Y: {DebugNodeOffset.Y:F3}", (int)screenPos.X - 80, textY, 12, Color.Green);
+            textY += 15;
+            Raylib.DrawText($"Offset Z: {DebugNodeOffset.Z:F3}", (int)screenPos.X - 80, textY, 12, Color.Blue);
+        }
+    }
+    
+    // ===== STANDARD DEBUG (FÜR ALLE BELTS) =====
+    if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
+    {
+        Vector3 arrowStart = Position;
+        arrowStart.Y += ItemHeight + 1.5f;
+        Vector3 arrowEnd = arrowStart + Direction * 0.5f;
+        
+        Raylib.DrawLine3D(arrowStart, arrowEnd, Color.Orange);
+        Raylib.DrawSphere(arrowEnd, 0.05f, Color.Orange);
+        
+        if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+        {
+            Vector3 secondaryArrowEnd = arrowStart + SecondaryDirection * 0.5f;
+            Raylib.DrawLine3D(arrowStart, secondaryArrowEnd, Color.Purple);
+            Raylib.DrawSphere(secondaryArrowEnd, 0.05f, Color.Purple);
         }
         
+        Vector2 screenPos = Raylib.GetWorldToScreen(arrowStart, Data.GlobalData.camera);
+        Raylib.DrawText($"Type: {Type}", (int)screenPos.X - 30, (int)screenPos.Y - 75, 12, Color.Orange);
+        Raylib.DrawText($"Rot: {rotationAngle:F0}°", (int)screenPos.X - 30, (int)screenPos.Y - 60, 12, Color.Orange);
+    }
+    
+    // Zeichne Model
+    Raylib.DrawModelEx(Model, Position, rotationAxis, rotationAngle, Vector3.One, Color.White);
+    
+    // Kurven-Pfad
+    if ((Type == BeltType.CurveLeft || Type == BeltType.CurveRight) && Data.GlobalData.ShowDebugInfo)
+    {
+        DrawCurvePath();
+    }
+}
+
         // ===== NEU: ZEICHNE KURVEN-PFAD (OPTIONAL, NUR IM DEBUG) =====
         private void DrawCurvePath()
         {
@@ -503,10 +632,94 @@ namespace BeyondIndustry.Factory
             }
         }
         
+
+private void DrawConnections()
+{
+    // ... existing connection drawing code ...
+    
+    if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
+    {
+        Vector2 screenPos = Raylib.GetWorldToScreen(Position + new Vector3(0, 2, 0), Data.GlobalData.camera);
+        int y = (int)screenPos.Y;
+        
+        Raylib.DrawText("=== BELT CONTROLS ===", (int)screenPos.X - 80, y, 14, Color.Yellow);
+        y += 20;
+        
+        // ===== RAMPEN-SPEZIFISCHE CONTROLS =====
+        if (Type == BeltType.RampUp || Type == BeltType.RampDown)
+        {
+            Raylib.DrawText("--- RAMP DEBUG NODE ---", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+            y += 15;
+            Raylib.DrawText("Arrow Keys: Move X/Y", (int)screenPos.X - 80, y, 10, Color.White);
+            y += 12;
+            Raylib.DrawText("PgUp/PgDown: Move Z", (int)screenPos.X - 80, y, 10, Color.White);
+            y += 12;
+            Raylib.DrawText("P: Print Position", (int)screenPos.X - 80, y, 10, Color.White);
+            y += 12;
+            Raylib.DrawText("V: Toggle Visibility", (int)screenPos.X - 80, y, 10, Color.White);
+            y += 12;
+            Raylib.DrawText("End: Reset Node", (int)screenPos.X - 80, y, 10, Color.White);
+            y += 20;
+        }
+        
+        // STANDARD CONTROLS
+        Raylib.DrawText("Numpad 7/4: SpawnPoint", (int)screenPos.X - 80, y, 12, Color.White);
+        y += 15;
+        Raylib.DrawText("Numpad 9/6: EndPoint", (int)screenPos.X - 80, y, 12, Color.White);
+        y += 15;
+        Raylib.DrawText("Numpad 8/5: Spacing", (int)screenPos.X - 80, y, 12, Color.White);
+        y += 15;
+        
+        if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+        {
+            Raylib.DrawText("Numpad 1/2: Curve Radius", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+            y += 15;
+        }
+        
+        Raylib.DrawText("Numpad 0: Reset All", (int)screenPos.X - 80, y, 12, Color.White);
+        y += 20;
+        
+        // AKTUELLE WERTE
+        Raylib.DrawText($"Spawn: {SpawnPoint:F2}", (int)screenPos.X - 80, y, 12, Color.Lime);
+        y += 15;
+        Raylib.DrawText($"End: {EndPoint:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+        y += 15;
+        Raylib.DrawText($"Spacing: {MinItemSpacing:F2}", (int)screenPos.X - 80, y, 12, Color.White);
+        y += 15;
+        
+        if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
+        {
+            Raylib.DrawText($"Radius: {CurveRadius:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
+            y += 15;
+            
+            Vector3 centerPos = Position;
+            centerPos.Y += ItemHeight + 1.3f;
+            Vector3 radiusEnd = centerPos + Direction * CurveRadius;
+            Raylib.DrawLine3D(centerPos, radiusEnd, Color.SkyBlue);
+            Raylib.DrawSphere(radiusEnd, 0.05f, Color.SkyBlue);
+        }
+    }
+}
+
         private float CalculateRotationAngle()
         {
             float baseAngle = (float)(Math.Atan2(Direction.X, Direction.Z) * (180.0 / Math.PI));
-            float modelOffset = 0f;
+            
+            // ===== SPEZIELLE ROTATION FÜR RAMPS =====
+            
+            float modelOffset = Type switch
+            {
+                BeltType.Straight => 0f,      // Keine zusätzliche Rotation
+                BeltType.CurveLeft => 0f,     // Keine zusätzliche Rotation
+                BeltType.CurveRight => 0f,    // Keine zusätzliche Rotation
+                BeltType.RampUp => 180f,      // 180° gedreht
+                BeltType.RampDown => 0f,    // 180° gedreht
+                BeltType.Merger => 0f,
+                BeltType.Splitter => 0f,
+                BeltType.Crossing => 0f,
+                _ => 0f
+            };
+            
             return baseAngle + modelOffset;
         }
         
@@ -625,81 +838,6 @@ namespace BeyondIndustry.Factory
         }
         
         // ===== VERBINDUNGEN (ERWEITERT) =====
-        private void DrawConnections()
-        {
-            // ===== VERBINDUNGS-LINIEN ZEICHNEN =====
-            if (InputMachine != null)
-            {
-                Vector3 inputPos = CalculateItemPosition(SpawnPoint);
-                Raylib.DrawLine3D(InputMachine.Position + new Vector3(0, 1, 0), inputPos, Color.Green);
-                Raylib.DrawSphere(inputPos, 0.15f, Color.Green);
-                
-                if (Data.GlobalData.ShowDebugInfo)
-                {
-                    Vector2 screenPos = Raylib.GetWorldToScreen(inputPos, Data.GlobalData.camera);
-                    Raylib.DrawText($"IN: {InputMachine.MachineType}", (int)screenPos.X - 50, (int)screenPos.Y, 12, Color.Green);
-                }
-            }
-            
-            if (OutputMachine != null)
-            {
-                Vector3 outputPos = CalculateItemPosition(EndPoint);
-                Raylib.DrawLine3D(outputPos, OutputMachine.Position + new Vector3(0, 1, 0), Color.Blue);
-                Raylib.DrawSphere(outputPos, 0.15f, Color.Blue);
-                
-                if (Data.GlobalData.ShowDebugInfo)
-                {
-                    Vector2 screenPos = Raylib.GetWorldToScreen(outputPos, Data.GlobalData.camera);
-                    Raylib.DrawText($"OUT: {OutputMachine.MachineType}", (int)screenPos.X - 50, (int)screenPos.Y, 12, Color.Blue);
-                }
-            }
-            
-            if (Data.GlobalData.ShowDebugInfo && IsNearMouse())
-            {
-                Vector2 screenPos = Raylib.GetWorldToScreen(Position + new Vector3(0, 2, 0), Data.GlobalData.camera);
-                int y = (int)screenPos.Y;
-                
-                Raylib.DrawText("=== BELT CONTROLS ===", (int)screenPos.X - 80, y, 14, Color.Yellow);
-                y += 20;
-                Raylib.DrawText("Numpad 7/4: SpawnPoint", (int)screenPos.X - 80, y, 12, Color.White);
-                y += 15;
-                Raylib.DrawText("Numpad 9/6: EndPoint", (int)screenPos.X - 80, y, 12, Color.White);
-                y += 15;
-                Raylib.DrawText("Numpad 8/5: Spacing", (int)screenPos.X - 80, y, 12, Color.White);
-                y += 15;
-                
-                // ===== NEU: ZEIGE RADIUS-CONTROLS FÜR KURVEN =====
-                if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
-                {
-                    Raylib.DrawText("Numpad 1/2: Curve Radius", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
-                    y += 15;
-                }
-                
-                Raylib.DrawText("Numpad 0: Reset", (int)screenPos.X - 80, y, 12, Color.White);
-                y += 20;
-                Raylib.DrawText($"Spawn: {SpawnPoint:F2}", (int)screenPos.X - 80, y, 12, Color.Lime);
-                y += 15;
-                Raylib.DrawText($"End: {EndPoint:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
-                y += 15;
-                Raylib.DrawText($"Spacing: {MinItemSpacing:F2}", (int)screenPos.X - 80, y, 12, Color.White);
-                y += 15;
-                
-                // ===== NEU: ZEIGE RADIUS FÜR KURVEN =====
-                if (Type == BeltType.CurveLeft || Type == BeltType.CurveRight)
-                {
-                    Raylib.DrawText($"Radius: {CurveRadius:F2}", (int)screenPos.X - 80, y, 12, Color.SkyBlue);
-                    y += 15;
-                    
-                    // ===== BONUS: VISUALISIERE DEN RADIUS =====
-                    Vector3 centerPos = Position;
-                    centerPos.Y += ItemHeight + 1.3f;
-                    
-                    Vector3 radiusEnd = centerPos + Direction * CurveRadius;
-                    Raylib.DrawLine3D(centerPos, radiusEnd, Color.SkyBlue);
-                    Raylib.DrawSphere(radiusEnd, 0.05f, Color.SkyBlue);
-                }
-            }
-        }
         
         public override string GetDebugInfo()
         {
