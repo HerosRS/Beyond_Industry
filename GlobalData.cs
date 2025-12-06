@@ -25,7 +25,7 @@ namespace BeyondIndustry.Data
             SCREEN_HEIGHT = Raylib.GetScreenHeight();
         }
         // ===== DEBUG FLAGS =====
-        public static bool ShowDebugInfo = true;           // Master Debug Toggle
+        public static bool ShowDebugInfo = false;           // Master Debug Toggle
         public static bool ShowFPS = false;                // FPS Counter
         public static bool ShowMousePos = false;           // Mausposition
         public static bool ShowCameraInfo = false;         // Kamera-Details
@@ -51,7 +51,9 @@ namespace BeyondIndustry.Data
     }
     
     public static class GlobalColor
+    
     {
+        public static Color skyColor = new Color(135, 206, 235, 255);  // NEU
         // ===== UI COLORS =====
         public static Color BACKGROUND_COLOR = new Color(40, 40, 40, 255);
         public static Color FORGROUND_COLOR = new Color(56, 55, 52, 255);

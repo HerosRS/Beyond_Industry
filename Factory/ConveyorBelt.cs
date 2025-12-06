@@ -365,32 +365,73 @@ namespace BeyondIndustry.Factory
         {
             base.Deserialize(data);
             
-            if (data.ContainsKey("BeltSpeed"))
-                BeltSpeed = Convert.ToSingle(data["BeltSpeed"]);
-            
-            if (data.ContainsKey("CurveRadius"))
-                CurveRadius = Convert.ToSingle(data["CurveRadius"]);
-            
-            // Items deserialisieren
-            if (data.ContainsKey("Items") && data["Items"] is List<object> itemsList)
+            // ===== WICHTIG: BELT TYPE ZUERST LADEN =====
+            if (data.ContainsKey("BeltType"))
             {
-                items.Clear();
-                foreach (var itemObj in itemsList)
+                string typeString = data["BeltType"].ToString() ?? "Straight";
+                Type = Enum.Parse<BeltType>(typeString);
+                Console.WriteLine($"[Belt] Loaded BeltType: {Type}");
+            }
+            
+            // ===== DIRECTION LADEN =====
+            if (data.ContainsKey("Direction"))
+            {
+                var dirData = data["Direction"] as Dictionary<string, object>;
+                if (dirData != null)
                 {
-                    if (itemObj is Dictionary<string, object> itemData)
-                    {
-                        var item = new ConveyorItem(
-                            itemData["ResourceType"].ToString() ?? "",
-                            Convert.ToInt32(itemData["Amount"])
-                        );
-                        item.Progress = Convert.ToSingle(itemData["Progress"]);
-                        items.Add(item);
-                    }
+                    Direction = new Vector3(
+                        Convert.ToSingle(dirData["X"]),
+                        Convert.ToSingle(dirData["Y"]),
+                        Convert.ToSingle(dirData["Z"])
+                    );
+                    CalculateSecondaryDirection();
                 }
             }
+    
+    if (data.ContainsKey("BeltSpeed"))
+        BeltSpeed = Convert.ToSingle(data["BeltSpeed"]);
+    
+    if (data.ContainsKey("CurveRadius"))
+        CurveRadius = Convert.ToSingle(data["CurveRadius"]);
+    
+    // Items deserialisieren
+    if (data.ContainsKey("Items") && data["Items"] is List<object> itemsList)
+    {
+        items.Clear();
+        foreach (var itemObj in itemsList)
+        {
+            if (itemObj is Dictionary<string, object> itemData)
+            {
+                var item = new ConveyorItem(
+                    itemData["ResourceType"].ToString() ?? "",
+                    Convert.ToInt32(itemData["Amount"])
+                );
+                item.Progress = Convert.ToSingle(itemData["Progress"]);
+                items.Add(item);
+            }
         }
+    }
+    
+    // ===== NEU: MODEL NACH DESERIALISIERUNG AKTUALISIEREN =====
+    UpdateModelForType();
+    }
+
+    // ===== NEU: METHODE UM MODEL BASIEREND AUF TYPE ZU SETZEN =====
+    private void UpdateModelForType()
+    {
+        string modelKey = $"ConveyorBelt_{Type}";
+        Model newModel = ModelRegistry.GetModel(modelKey);
         
-        public override void Draw()
+        if (newModel.MeshCount > 0)
+        {
+            Model = newModel;
+            Console.WriteLine($"[Belt] Updated model to: {modelKey}");
+        }
+        else
+        {
+            Console.WriteLine($"[Belt] Warning: Could not find model for {modelKey}, using default");
+        }
+    }        public override void Draw()
         {
             DrawBeltModel();
             DrawItems();
@@ -465,7 +506,7 @@ namespace BeyondIndustry.Factory
         private float CalculateRotationAngle()
         {
             float baseAngle = (float)(Math.Atan2(Direction.X, Direction.Z) * (180.0 / Math.PI));
-            float modelOffset = 90f;
+            float modelOffset = 0f;
             return baseAngle + modelOffset;
         }
         

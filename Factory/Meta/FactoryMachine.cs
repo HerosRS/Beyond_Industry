@@ -10,7 +10,7 @@ namespace BeyondIndustry.Factory
     {
         public string MachineType { get; set; } = "Unknown";
         public Vector3 Position { get; set; }
-        public Model Model { get; protected set; }
+        public Model Model { get; set; }
         
         public bool IsManuallyEnabled { get; set; } = true;
         public bool IsRunning { get; protected set; } = false;
@@ -22,8 +22,10 @@ namespace BeyondIndustry.Factory
         
         // ===== BUTTON SYSTEM =====
         protected Vector3 buttonPosition;
-        protected float buttonRadius = 0.3f;
         protected bool isButtonHovered = false;
+        private float buttonRadius = 0.15f;      // Kleiner Button
+        private float buttonDistance = 0.8f;     // Näher an der Maschine
+        private float maxClickDistance = 3.0f;   // NEU: Maximale Klick-Distanz
         
         protected FactoryMachine(Vector3 position, Model model)
         {
@@ -68,31 +70,52 @@ namespace BeyondIndustry.Factory
             }
         }
         
-        public bool IsButtonHovered()
+        public virtual bool IsButtonHovered()
         {
-            return isButtonHovered;
+            Vector2 mousePos = Raylib.GetMousePosition();
+            Ray ray = Raylib.GetMouseRay(mousePos, Data.GlobalData.camera);
+            
+            Vector3 buttonPos = Position + new Vector3(0, buttonDistance, 0);
+            
+            // NEU: Prüfe zuerst Distanz zur Kamera
+            float distanceToCamera = Vector3.Distance(Data.GlobalData.camera.Position, buttonPos);
+            if (distanceToCamera > maxClickDistance)
+                return false;
+            
+            // Prüfe Ray-Sphere Kollision
+            RayCollision collision = Raylib.GetRayCollisionSphere(ray, buttonPos, buttonRadius);
+            return collision.Hit;
         }
         
-        protected void DrawButton(Camera3D camera)
+    protected void DrawButton(Camera3D camera)
+    {
+        // Berechne Button-Position (über der Maschine)
+        Vector3 buttonPos = Position + new Vector3(0, buttonDistance, 0);
+        
+        // Prüfe Distanz zur Kamera
+        float distanceToCamera = Vector3.Distance(camera.Position, buttonPos);
+        
+        // Zeige Button nur wenn Kamera nah genug ist
+        if (distanceToCamera > 15.0f)  // Nur wenn näher als 15 Einheiten
+            return;
+        
+        // Button-Farbe basierend auf Status
+        Color buttonColor = IsManuallyEnabled ? Color.Green : Color.Red;
+        
+        // Hover-Check
+        if (IsButtonHovered())
         {
-            Ray mouseRay = Raylib.GetScreenToWorldRay(Raylib.GetMousePosition(), camera);
-            float distance = Vector3.Distance(mouseRay.Position, buttonPosition);
-            Vector3 toButton = buttonPosition - mouseRay.Position;
-            float dotProduct = Vector3.Dot(Vector3.Normalize(toButton), mouseRay.Direction);
-            
-            isButtonHovered = distance < 50f && dotProduct > 0.98f;
-            
-            Color buttonColor = IsManuallyEnabled ? 
-                (isButtonHovered ? Color.Lime : Color.Green) : 
-                (isButtonHovered ? Color.Orange : Color.Red);
-            
-            Raylib.DrawSphere(buttonPosition, buttonRadius, buttonColor);
-            
-            if (isButtonHovered)
-            {
-                Raylib.DrawSphereWires(buttonPosition, buttonRadius + 0.05f, 8, 8, Color.Yellow);
-            }
+            buttonColor = IsManuallyEnabled 
+                ? new Color(100, 255, 100, 255)  // Helles Grün
+                : new Color(255, 100, 100, 255); // Helles Rot
         }
+        
+        // Zeichne Button als Sphere
+        Raylib.DrawSphere(buttonPos, buttonRadius, buttonColor);
+        
+        // Optional: Outline für bessere Sichtbarkeit
+        Raylib.DrawSphereWires(buttonPos, buttonRadius + 0.02f, 8, 8, Color.White);
+    }
         
         // ===== SAVEABLE IMPLEMENTATION =====
         public virtual string GetSaveId()

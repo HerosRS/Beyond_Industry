@@ -82,6 +82,8 @@ namespace BeyondIndustry.Factory
         
         public void DrawDebugInfo(int startY)
         {
+            return;
+            /*
             int y = startY;
             Raylib.DrawText($"=== FACTORY STATUS ===", 10, y, 16, Color.White);
             y += 20;
@@ -114,6 +116,7 @@ namespace BeyondIndustry.Factory
                 Raylib.DrawText(machine.GetDebugInfo(), 10, y, 12, statusColor);
                 y += 16;
             }
+            */
         }
         
         public List<ConveyorBelt> GetAllBelts()

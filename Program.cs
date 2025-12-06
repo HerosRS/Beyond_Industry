@@ -7,6 +7,7 @@ using BeyondIndustry.Factory;
 using BeyondIndustry.Factory.Resources;
 using System.Numerics;
 using System;
+using BeyondIndustry.Rendering;
 using System.Collections.Generic;
 
 namespace BeyondIndustry
@@ -46,7 +47,13 @@ namespace BeyondIndustry
         // ===== SHADER =====
         Shader? shader = LoadShader();
         
-        // ===== MODELS - NUR EINE ZEILE! =====
+        // ===== LIGHTING SYSTEM INITIALIZE =====
+        if (shader.HasValue)
+        {
+            LightingSystem.Initialize(shader.Value);
+        }
+        
+        // ===== MODELS =====
         ModelRegistry.LoadAllModels(shader);
         
         // ===== MASCHINEN-SYSTEM =====
@@ -70,9 +77,17 @@ namespace BeyondIndustry
         
         bool requestRestart = false;
         
+        // ===== MAIN LOOP =====
         while (!Raylib.WindowShouldClose() && !requestRestart)
         {
             float deltaTime = Raylib.GetFrameTime();
+            
+            // ===== LIGHTING UPDATE =====
+            if (shader.HasValue)
+            {
+                LightingSystem.Update(deltaTime, shader);
+                LightingSystem.UpdateShader(shader.Value);
+            }
             
             HotReloadSystem.Update(deltaTime);
             
@@ -95,6 +110,20 @@ namespace BeyondIndustry
                 {
                     cameraController.ResetCamera();
                     Console.WriteLine("[Camera] Reset to origin");
+                }
+                
+                // ===== LIGHTING CONTROLS =====
+                if (Raylib.IsKeyPressed(KeyboardKey.L))
+                {
+                    var currentTime = LightingSystem.CurrentTime;
+                    var nextTime = (TimeOfDay)(((int)currentTime + 1) % 6);
+                    LightingSystem.SetTimeOfDay(nextTime);
+                }
+
+                if (Raylib.IsKeyPressed(KeyboardKey.T))
+                {
+                    LightingSystem.AutoCycle = !LightingSystem.AutoCycle;
+                    Console.WriteLine($"[Lighting] Auto-Cycle: {LightingSystem.AutoCycle}");
                 }
                 
                 if (Raylib.IsKeyPressed(KeyboardKey.F5))
@@ -137,7 +166,10 @@ namespace BeyondIndustry
                 
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                     placementSystem.RotateBelt();
-                
+                if (Raylib.IsKeyPressed(KeyboardKey.U))
+                {
+                    LightingSystem.ToggleSun();
+                }
                 // Save/Load
                 if (Raylib.IsKeyPressed(KeyboardKey.F8))
                 {
@@ -185,22 +217,26 @@ namespace BeyondIndustry
             
             // ===== DRAW =====
             Raylib.BeginDrawing();
-            Raylib.ClearBackground(new Color(135, 206, 235, 255));
+            
+            // ===== SKY COLOR FROM LIGHTING SYSTEM =====
+            Color bgColor = LightingSystem.GetSkyColor();
+            Raylib.ClearBackground(bgColor);
             
             Raylib.BeginMode3D(GlobalData.camera);
                 UI.MainUI.Draw3DElements();
                 
                 // Zeichne Boden
                 Model bodenModel = ModelRegistry.GetModel("Boden");
-                Raylib.DrawModelEx(bodenModel, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.Green);
+                Raylib.DrawModelEx(bodenModel, Vector3.Zero, new Vector3(0, 1, 0), 90.0f, Vector3.One, Color.White);
                 
                 factoryManager.DrawAll();
                 placementSystem.DrawPreview();
             Raylib.EndMode3D();
 
-            Raylib.DrawText("WASD: Move | F5: Hot Reload Toggle | F6: Apply Reload (Restart)", 10, 10, 18, Color.Black);
-            Raylib.DrawText("LClick: Place | RClick: Remove | R: Rotate Belt", 10, 32, 18, Color.Black);
-            Raylib.DrawText($"Layer: {placementSystem.CurrentLayer} | +/-: Change | 0: Reset | H: Auto-Detect", 10, 54, 18, Color.Black);
+            Raylib.DrawText("MMB: Orbit | Shift+MMB: Pan | Wheel: Zoom | WASD: Move", 10, 10, 18, Color.White);
+            Raylib.DrawText("LClick: Place | RClick: Remove | R: Rotate Belt", 10, 32, 18, Color.White);
+            Raylib.DrawText($"Layer: {placementSystem.CurrentLayer} | +/-: Change | 0: Reset | H: Auto-Detect", 10, 54, 18, Color.White);
+            Raylib.DrawText($"L: Lighting | T: Auto-Cycle | {LightingSystem.GetDebugInfo()}", 10, 76, 18, Color.White);
             
             string hotReloadStatus = HotReloadSystem.Enabled ? "ON" : "OFF";
             Color hotReloadColor = HotReloadSystem.Enabled ? Color.Green : Color.Red;
@@ -256,7 +292,6 @@ namespace BeyondIndustry
         return false;
     }
 }
-
 static Shader? LoadShader()
 {
     try

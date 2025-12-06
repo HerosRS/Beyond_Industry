@@ -39,9 +39,11 @@ namespace BeyondIndustry.Factory
             new ModelDefinition("ConveyorBelt_RampDown", @"..\..\..\Resources\Belt.obj"),
             
             // ===== STRUKTUREN & DEKO =====
-            new ModelDefinition("T_Traeger_Gerade", @"..\..\..\Resources\T_Traeger_Vertikal.obj"),
-            //new ModelDefinition("T_Traeger_Gerade", @"..\..\..\Resources\T_Traeger_Horizontal.obj"),
+            new ModelDefinition("T_Traeger_Vertikal", @"..\..\..\Resources\T_Traeger_Vertikal.obj"),
+            new ModelDefinition("T_Traeger_Horizontal", @"..\..\..\Resources\T_Traeger_Horizontal.obj"),
             new ModelDefinition("T_Traeger_Ecke", @"..\..\..\Resources\T_Traeger_Ecke.obj"),
+            new ModelDefinition("T_Traeger_T", @"..\..\..\Resources\T_Traeger_T.obj"),
+            new ModelDefinition("T_Traeger_X", @"..\..\..\Resources\T_Traeger_X.obj"),
             // ===== NEUE MODELS HIER HINZUFÜGEN =====
             // new ModelDefinition("MeinNeuesModel", @"..\..\..\Resources\MeinModel.obj"),
         };

@@ -31,7 +31,7 @@ namespace BeyondIndustry.Data
             }
         }
         
-        // ===== SAVE GAME - AUTOMATISCH! =====
+        // ===== SAVE GAME =====
         public static bool SaveGame(string saveName, FactoryManager factoryManager, CameraController cameraController)
         {
             try
@@ -45,7 +45,7 @@ namespace BeyondIndustry.Data
                     GameVersion = "0.1.0"
                 };
                 
-                // Speichere Maschinen - AUTOMATISCH!
+                // Speichere Maschinen
                 var machines = factoryManager.GetAllMachines();
                 foreach (var machine in machines)
                 {
@@ -95,7 +95,7 @@ namespace BeyondIndustry.Data
             }
         }
         
-        // ===== LOAD GAME - AUTOMATISCH MIT JsonElement FIX! =====
+        // ===== LOAD GAME - MIT MODEL-FIX! =====
         public static bool LoadGame(string saveName, FactoryManager factoryManager, CameraController cameraController, Dictionary<string, Model> modelMap)
         {
             try
@@ -122,7 +122,7 @@ namespace BeyondIndustry.Data
                 // Lösche aktuelle Factory
                 factoryManager.Clear();
                 
-                // Lade Maschinen - AUTOMATISCH!
+                // Lade Maschinen
                 List<FactoryMachine> loadedMachines = new List<FactoryMachine>();
                 foreach (var machineData in saveData.Machines)
                 {
@@ -130,9 +130,12 @@ namespace BeyondIndustry.Data
                     
                     if (machine != null && machine is ISaveable saveable)
                     {
-                        // ===== FIX: KONVERTIERE JsonElement PROPERTIES! =====
+                        // Konvertiere JsonElement Properties
                         var convertedProperties = ConvertJsonElementProperties(machineData.Properties);
                         saveable.Deserialize(convertedProperties);
+                        
+                        // ===== FIX: MODEL NACH DESERIALISIERUNG AKTUALISIEREN =====
+                        UpdateMachineModel(machine, convertedProperties);
                         
                         factoryManager.AddMachine(machine);
                         loadedMachines.Add(machine);
@@ -164,7 +167,126 @@ namespace BeyondIndustry.Data
             }
         }
         
-        // ===== NEU: JsonElement KONVERTER =====
+        // ===== NEU: MODEL NACH DESERIALISIERUNG AKTUALISIEREN =====
+        private static void UpdateMachineModel(FactoryMachine machine, Dictionary<string, object> properties)
+        {
+            // CONVEYOR BELT - Spezielle Behandlung
+            if (machine is ConveyorBelt belt)
+            {
+                if (properties.ContainsKey("BeltType"))
+                {
+                    string beltTypeStr = properties["BeltType"].ToString() ?? "Straight";
+                    
+                    if (Enum.TryParse<BeltType>(beltTypeStr, out BeltType beltType))
+                    {
+                        // Hole das richtige Model basierend auf BeltType
+                        string modelKey = beltType switch
+                        {
+                            BeltType.CurveLeft => "ConveyorBelt_CurveLeft",
+                            BeltType.CurveRight => "ConveyorBelt_CurveRight",
+                            BeltType.RampUp => "ConveyorBelt_RampUp",
+                            BeltType.RampDown => "ConveyorBelt_RampDown",
+                            BeltType.Straight => "ConveyorBelt_Straight",
+                            _ => "ConveyorBelt_Straight"
+                        };
+                        
+                        Model beltModel = ModelRegistry.GetModel(modelKey);
+                        belt.Model = beltModel;
+                        
+                        Console.WriteLine($"[SaveLoad] Updated Belt model to: {modelKey}");
+                    }
+                }
+                return;
+            }
+            
+            // MINING MACHINE - Nach ResourceType
+            if (machine is MiningMachine miner)
+            {
+                if (properties.ContainsKey("ResourceType"))
+                {
+                    string resourceType = properties["ResourceType"].ToString() ?? "IronOre";
+                    
+                    string modelKey = resourceType switch
+                    {
+                        "IronOre" => "IronDrill",
+                        "CopperOre" => "CopperDrill",
+                        _ => "IronDrill"
+                    };
+                    
+                    Model minerModel = ModelRegistry.GetModel(modelKey);
+                    miner.Model = minerModel;
+                    
+                    Console.WriteLine($"[SaveLoad] Updated Miner model to: {modelKey}");
+                }
+                return;
+            }
+            
+            // FURNACE - Nach InputResource
+            if (machine is FurnaceMachine furnace)
+            {
+                if (properties.ContainsKey("InputResource"))
+                {
+                    string inputResource = properties["InputResource"].ToString() ?? "IronOre";
+                    
+                    string modelKey = inputResource switch
+                    {
+                        "IronOre" => "Iron_Furnace",
+                        "CopperOre" => "Copper_Furnace",
+                        _ => "Iron_Furnace"
+                    };
+                    
+                    Model furnaceModel = ModelRegistry.GetModel(modelKey);
+                    furnace.Model = furnaceModel;
+                    
+                    Console.WriteLine($"[SaveLoad] Updated Furnace model to: {modelKey}");
+                }
+                return;
+            }
+                       
+            
+            // T-TRÄGER - Nach MachineType
+            if (machine is T_Traeger_Vertikal)
+            {
+                Model model = ModelRegistry.GetModel("T_Traeger_Vertikal");
+                machine.Model = model;
+                Console.WriteLine($"[SaveLoad] Updated T_Traeger_Vertikal model");
+                return;
+            }
+            
+            if (machine is T_Traeger_Horizontal)
+            {
+                Model model = ModelRegistry.GetModel("T_Traeger_Horizontal");
+                machine.Model = model;
+                Console.WriteLine($"[SaveLoad] Updated T_Traeger_Horizontal model");
+                return;
+            }
+            
+            if (machine is T_Traeger_Ecke)
+            {
+                Model model = ModelRegistry.GetModel("T_Traeger_Ecke");
+                machine.Model = model;
+                Console.WriteLine($"[SaveLoad] Updated T_Traeger_Ecke model");
+                return;
+            }
+
+            if (machine is T_Traeger_T)
+            {
+                Model model = ModelRegistry.GetModel("T_Traeger_T");
+                machine.Model = model;
+                Console.WriteLine($"[SaveLoad] Updated T_Traeger_T model");
+                return;
+            }
+
+            if (machine is T_Traeger_X)
+            {
+                Model model = ModelRegistry.GetModel("T_Traeger_X");
+                machine.Model = model;
+                Console.WriteLine($"[SaveLoad] Updated T_Traeger_X model");
+                return;
+            }
+        }
+        
+        // ===== JsonElement KONVERTER =====
         private static Dictionary<string, object> ConvertJsonElementProperties(Dictionary<string, object> properties)
         {
             var converted = new Dictionary<string, object>();
@@ -192,7 +314,6 @@ namespace BeyondIndustry.Data
                     return element.GetString() ?? "";
                 
                 case JsonValueKind.Number:
-                    // Versuche Int zuerst, dann Float, dann Double
                     if (element.TryGetInt32(out int intValue))
                         return intValue;
                     if (element.TryGetSingle(out float floatValue))
@@ -227,48 +348,55 @@ namespace BeyondIndustry.Data
             }
         }
         
-        // ===== MASCHINE ERSTELLEN (NUR CONSTRUCTOR!) =====
+        // ===== MASCHINE ERSTELLEN =====
         private static FactoryMachine? CreateMachineFromData(MachineData data, Dictionary<string, Model> modelMap)
         {
             Vector3 position = data.Position.ToVector3();
-            Model model = modelMap.GetValueOrDefault("default");
+            Model defaultModel = ModelRegistry.GetModel("default");
             
-            // ===== FIX: KONVERTIERE PROPERTIES VOR VERWENDUNG =====
+            // Konvertiere Properties VOR Verwendung
             var props = ConvertJsonElementProperties(data.Properties);
             
             switch (data.MachineType)
             {
+                // ===== MINING MACHINES =====
                 case "MiningDrill_Iron":
-                    model = modelMap.GetValueOrDefault("MiningDrill_Iron", model);
-                    string ironResource = props.ContainsKey("ResourceType") ? props["ResourceType"].ToString() ?? "IronOre" : "IronOre";
-                    return new MiningMachine(position, model, ironResource);
+                    string ironResource = props.ContainsKey("ResourceType") 
+                        ? props["ResourceType"].ToString() ?? "IronOre" 
+                        : "IronOre";
+                    return new MiningMachine(position, defaultModel, ironResource);
                 
                 case "MiningDrill_Copper":
-                    model = modelMap.GetValueOrDefault("MiningDrill_Copper", model);
-                    string copperResource = props.ContainsKey("ResourceType") ? props["ResourceType"].ToString() ?? "CopperOre" : "CopperOre";
-                    return new MiningMachine(position, model, copperResource);
+                    string copperResource = props.ContainsKey("ResourceType") 
+                        ? props["ResourceType"].ToString() ?? "CopperOre" 
+                        : "CopperOre";
+                    return new MiningMachine(position, defaultModel, copperResource);
                 
+                // ===== FURNACES =====
                 case "Iron_Furnace":
-                    model = modelMap.GetValueOrDefault("Iron_Furnace", model);
-                    string input = props.ContainsKey("InputResource") ? props["InputResource"].ToString() ?? "IronOre" : "IronOre";
-                    string output = props.ContainsKey("OutputResource") ? props["OutputResource"].ToString() ?? "IronPlate" : "IronPlate";
-                    return new FurnaceMachine(position, model, input, output);
+                    string ironInput = props.ContainsKey("InputResource") 
+                        ? props["InputResource"].ToString() ?? "IronOre" 
+                        : "IronOre";
+                    string ironOutput = props.ContainsKey("OutputResource") 
+                        ? props["OutputResource"].ToString() ?? "IronPlate" 
+                        : "IronPlate";
+                    return new FurnaceMachine(position, defaultModel, ironInput, ironOutput);
                 
                 case "Copper_Furnace":
-                    model = modelMap.GetValueOrDefault("Copper_Furnace", model);
-                    string copperInput = props.ContainsKey("InputResource") ? props["InputResource"].ToString() ?? "CopperOre" : "CopperOre";
-                    string copperOutput = props.ContainsKey("OutputResource") ? props["OutputResource"].ToString() ?? "CopperPlate" : "CopperPlate";
-                    return new FurnaceMachine(position, model, copperInput, copperOutput);
-
-                case "T_Traeger_Vertikal":
-                    model = modelMap.GetValueOrDefault("T_Traeger_Vertikal", model);
-                    return new T_Traeger_Vertikal(position, model, 3.0f);
-                    
+                    string copperInput = props.ContainsKey("InputResource") 
+                        ? props["InputResource"].ToString() ?? "CopperOre" 
+                        : "CopperOre";
+                    string copperOutput = props.ContainsKey("OutputResource") 
+                        ? props["OutputResource"].ToString() ?? "CopperPlate" 
+                        : "CopperPlate";
+                    return new FurnaceMachine(position, defaultModel, copperInput, copperOutput);
+                
+                // ===== CONVEYOR BELTS =====
                 case "ConveyorBelt":
-                    BeltType type = BeltType.Straight;
+                    BeltType beltType = BeltType.Straight;
                     if (props.ContainsKey("BeltType") && Enum.TryParse(props["BeltType"].ToString(), out BeltType parsedType))
                     {
-                        type = parsedType;
+                        beltType = parsedType;
                     }
                     
                     Vector3 direction = new Vector3(1, 0, 0);
@@ -280,18 +408,24 @@ namespace BeyondIndustry.Data
                         direction = new Vector3(x, y, z);
                     }
                     
-                    string modelKey = type switch
-                    {
-                        BeltType.CurveLeft => "belt_curve_left",
-                        BeltType.CurveRight => "belt_curve_right",
-                        BeltType.RampUp => "belt_ramp_up",
-                        BeltType.RampDown => "belt_ramp_down",
-                        _ => "belt_straight"
-                    };
-                    
-                    model = modelMap.GetValueOrDefault(modelKey, modelMap.GetValueOrDefault("default", model));
-                    
-                    return new ConveyorBelt(position, model, direction, type);
+                    // Model wird später in UpdateMachineModel() gesetzt
+                    return new ConveyorBelt(position, defaultModel, direction, beltType);
+                            
+                // ===== DEKO-ELEMENTE =====
+                case "T_Traeger_Vertikal":
+                    return new T_Traeger_Vertikal(position, defaultModel, 3.0f);
+                
+                case "T_Traeger_Horizontal":
+                    return new T_Traeger_Horizontal(position, defaultModel, 3.0f);
+                
+                case "T_Traeger_Ecke":
+                    return new T_Traeger_Ecke(position, defaultModel, 3.0f);
+
+                case "T_Traeger_T":
+                    return new T_Traeger_T(position, defaultModel, 3.0f);
+
+                case "T_Traeger_X":
+                    return new T_Traeger_X(position, defaultModel, 3.0f);
                 
                 default:
                     Console.WriteLine($"[SaveLoad] ✗ Unknown type: {data.MachineType}");
@@ -299,6 +433,7 @@ namespace BeyondIndustry.Data
             }
         }
         
+        // ===== BELT CONNECTIONS =====
         private static List<BeltConnectionData> SerializeBeltConnections(List<FactoryMachine> machines)
         {
             List<BeltConnectionData> connections = new List<BeltConnectionData>();
@@ -323,15 +458,20 @@ namespace BeyondIndustry.Data
         {
             foreach (var connection in connections)
             {
-                if (connection.BeltIndex >= 0 && connection.BeltIndex < machines.Count && machines[connection.BeltIndex] is ConveyorBelt belt)
+                if (connection.BeltIndex >= 0 && connection.BeltIndex < machines.Count && 
+                    machines[connection.BeltIndex] is ConveyorBelt belt)
                 {
-                    if (connection.InputMachineIndex.HasValue && connection.InputMachineIndex.Value >= 0 && connection.InputMachineIndex.Value < machines.Count)
+                    if (connection.InputMachineIndex.HasValue && 
+                        connection.InputMachineIndex.Value >= 0 && 
+                        connection.InputMachineIndex.Value < machines.Count)
                     {
                         belt.InputMachine = machines[connection.InputMachineIndex.Value];
                         Console.WriteLine($"[SaveLoad] Belt {connection.BeltIndex} → Input: {belt.InputMachine.MachineType}");
                     }
                     
-                    if (connection.OutputMachineIndex.HasValue && connection.OutputMachineIndex.Value >= 0 && connection.OutputMachineIndex.Value < machines.Count)
+                    if (connection.OutputMachineIndex.HasValue && 
+                        connection.OutputMachineIndex.Value >= 0 && 
+                        connection.OutputMachineIndex.Value < machines.Count)
                     {
                         belt.OutputMachine = machines[connection.OutputMachineIndex.Value];
                         Console.WriteLine($"[SaveLoad] Belt {connection.BeltIndex} → Output: {belt.OutputMachine.MachineType}");
@@ -340,6 +480,7 @@ namespace BeyondIndustry.Data
             }
         }
         
+        // ===== SAVE LIST =====
         public static List<string> GetSaveList()
         {
             List<string> saves = new List<string>();
@@ -352,6 +493,7 @@ namespace BeyondIndustry.Data
             return saves;
         }
         
+        // ===== DELETE SAVE =====
         public static bool DeleteSave(string saveName)
         {
             try

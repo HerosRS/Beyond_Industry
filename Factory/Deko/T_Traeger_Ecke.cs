@@ -51,8 +51,12 @@ namespace BeyondIndustry.Factory
         public override void Draw()
         {
             Raylib.DrawModel(Model, Position, 1.0f, TintColor);
-            
-            DrawButton(Data.GlobalData.camera);
+            // DrawButton(Data.GlobalData.camera);  // ← AUSKOMMENTIERT
+        }
+
+        public override bool IsButtonHovered()
+        {
+            return false;
         }
         
         public override string GetDebugInfo()

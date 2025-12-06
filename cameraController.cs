@@ -5,48 +5,29 @@ using BeyondIndustry.Data;
 
 namespace BeyondIndustry
 {
-    public enum CameraMode
-    {
-        Free,
-        Orbit
-    }
-    
     public class CameraController
     {
         public Camera3D Camera;
         
-        // ===== MODUS =====
-        public CameraMode Mode { get; private set; } = CameraMode.Free;
+        // ===== BLENDER-STYLE SETTINGS =====
+        public float OrbitSensitivity { get; set; } = 0.3f;      // Mittlere Maustaste Rotation
+        public float PanSensitivity { get; set; } = 0.01f;       // Shift + Mittlere Maustaste Pan
+        public float ZoomSpeed { get; set; } = 2.0f;             // Mausrad Zoom
+        public float WalkSpeed { get; set; } = 15.0f;            // WASD Bewegung
+        public float WalkSpeedFast { get; set; } = 40.0f;        // Shift + WASD
+        public float WalkSpeedSlow { get; set; } = 5.0f;         // Ctrl + WASD
         
-        // ===== BEWEGUNGS-EINSTELLUNGEN =====
-        public float MoveSpeed { get; set; } = 20.0f;
-        public float FastMoveMultiplier { get; set; } = 2.5f;
-        public float SlowMoveMultiplier { get; set; } = 0.5f;
+        // ===== CAMERA STATE =====
+        private Vector3 targetPosition;      // Der Punkt um den rotiert wird
+        private float distance;              // Distanz zum Target
+        private float horizontalAngle;       // Rotation um Y-Achse (Azimuth)
+        private float verticalAngle;         // Rotation um X-Achse (Elevation)
         
-        // ===== ROTATIONS-EINSTELLUNGEN =====
-        public float MouseRotationSpeed { get; set; } = 0.5f;
-        public float MouseTiltSpeed { get; set; } = 0.5f;
-        
-        // ===== ZOOM-EINSTELLUNGEN =====
-        public float ZoomSpeed { get; set; } = 2.0f;
-        public float MinZoom { get; set; } = 5.0f;
-        public float MaxZoom { get; set; } = 100.0f;
-        
-        // ===== KAMERA-WINKEL =====
-        private float horizontalAngle = 45.0f;  // Y-Rotation
-        private float verticalAngle = 45.0f;    // X-Rotation (Pitch/Tilt)
-        private float distance = 30.0f;         // Distanz vom Target
-        
-        // ===== TARGET =====
-        private Vector3 targetPosition;
-        
-        // ===== WINKEL-GRENZEN =====
-        public float MinVerticalAngle { get; set; } = 10.0f;
-        public float MaxVerticalAngle { get; set; } = 80.0f;
-        
-        // ===== ORBIT MODE =====
-        private Vector3 orbitTarget;
-        private float orbitDistance = 10.0f;
+        // ===== LIMITS =====
+        public float MinDistance { get; set; } = 2.0f;
+        public float MaxDistance { get; set; } = 150.0f;
+        public float MinVerticalAngle { get; set; } = 5.0f;
+        public float MaxVerticalAngle { get; set; } = 85.0f;
         
         // ===== BOUNDS =====
         public bool UseBounds { get; set; } = true;
@@ -55,11 +36,14 @@ namespace BeyondIndustry
         public float MinZ { get; set; } = -50f;
         public float MaxZ { get; set; } = 50f;
         
-        public CameraController(float moveSpeed = 20.0f, float v = 0)
+        // ===== INITIALIZATION =====
+        public CameraController(float moveSpeed = 20.0f, float initialDistance = 30.0f)
         {
-            MoveSpeed = moveSpeed;
+            WalkSpeed = moveSpeed;
             targetPosition = new Vector3(0.0f, 0.0f, 0.0f);
-            orbitTarget = Vector3.Zero;
+            distance = initialDistance;
+            horizontalAngle = 45.0f;
+            verticalAngle = 45.0f;
             
             Camera = new Camera3D
             {
@@ -70,55 +54,121 @@ namespace BeyondIndustry
                 Projection = CameraProjection.Perspective
             };
         }
+        
+        // ===== GETTERS =====
         public float GetHorizontalAngle() => horizontalAngle;
         public float GetVerticalAngle() => verticalAngle;
         public float GetDistance() => distance;
-
+        public Vector3 GetTargetPosition() => targetPosition;
+        
+        // ===== SETTERS =====
         public void SetPosition(Vector3 target, float horizontal, float vertical, float dist)
         {
             targetPosition = target;
             horizontalAngle = horizontal;
             verticalAngle = vertical;
             distance = dist;
-            
-            Camera.Position = CalculateCameraPosition();
-            Camera.Target = targetPosition;
+            UpdateCamera();
         }
         
-        // ===== UPDATE =====
+        // ===== MAIN UPDATE =====
         public void Update()
         {
             float deltaTime = Raylib.GetFrameTime();
             
-            // Mode Switch
-            if (Raylib.IsKeyPressed(KeyboardKey.O) && Raylib.IsKeyDown(KeyboardKey.LeftAlt))
+            // ===== BLENDER CONTROLS =====
+            
+            // 1. MITTLERE MAUSTASTE (OHNE SHIFT) = ORBIT (wie Blender)
+            if (Raylib.IsMouseButtonDown(MouseButton.Middle) && 
+                !Raylib.IsKeyDown(KeyboardKey.LeftShift) &&
+                !Raylib.IsKeyDown(KeyboardKey.RightShift))
             {
-                if (Mode == CameraMode.Free)
-                    EnterOrbitMode(targetPosition);
-                else
-                    ExitOrbitMode();
+                HandleOrbit();
             }
             
-            if (Mode == CameraMode.Free)
+            // 2. SHIFT + MITTLERE MAUSTASTE = PAN (wie Blender)
+            else if (Raylib.IsMouseButtonDown(MouseButton.Middle) && 
+                     (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift)))
             {
-                UpdateFreeMode(deltaTime);
+                HandlePan();
             }
-            else if (Mode == CameraMode.Orbit)
+            
+            // 3. MAUSRAD = ZOOM (wie Blender)
+            HandleZoom();
+            
+            // 4. WASD = WALK (zusätzlich zu Blender)
+            HandleWASDMovement(deltaTime);
+            
+            // 5. Apply Bounds
+            if (UseBounds)
             {
-                UpdateOrbitMode(deltaTime);
+                targetPosition.X = Math.Clamp(targetPosition.X, MinX, MaxX);
+                targetPosition.Z = Math.Clamp(targetPosition.Z, MinZ, MaxZ);
+            }
+            
+            // Update Camera
+            UpdateCamera();
+        }
+        
+        // ===== 1. ORBIT (Mittlere Maustaste) =====
+        private void HandleOrbit()
+        {
+            Vector2 mouseDelta = Raylib.GetMouseDelta();
+            
+            if (mouseDelta.Length() > 0)
+            {
+                // Horizontal rotation (um Y-Achse)
+                horizontalAngle -= mouseDelta.X * OrbitSensitivity;
+                
+                // Vertical rotation (um X-Achse)
+                verticalAngle += mouseDelta.Y * OrbitSensitivity;
+                verticalAngle = Math.Clamp(verticalAngle, MinVerticalAngle, MaxVerticalAngle);
             }
         }
         
-        // ===== FREE MODE UPDATE =====
-        private void UpdateFreeMode(float deltaTime)
+        // ===== 2. PAN (Shift + Mittlere Maustaste) =====
+        private void HandlePan()
         {
-            // ===== WASD MOVEMENT (RELATIV ZUR KAMERA!) =====
+            Vector2 mouseDelta = Raylib.GetMouseDelta();
+            
+            if (mouseDelta.Length() > 0)
+            {
+                // Berechne Kamera-relative Vektoren
+                Vector3 right = GetRightVector();
+                Vector3 up = GetUpVector();
+                
+                // Pan-Geschwindigkeit abhängig von Distanz
+                float panSpeed = distance * PanSensitivity;
+                
+                // Bewege Target
+                targetPosition -= right * mouseDelta.X * panSpeed;
+                targetPosition += up * mouseDelta.Y * panSpeed;
+            }
+        }
+        
+        // ===== 3. ZOOM (Mausrad) =====
+        private void HandleZoom()
+        {
+            float wheel = Raylib.GetMouseWheelMove();
+            
+            if (wheel != 0)
+            {
+                // Zoom towards/away from target
+                distance -= wheel * ZoomSpeed;
+                distance = Math.Clamp(distance, MinDistance, MaxDistance);
+            }
+        }
+        
+        // ===== 4. WASD MOVEMENT =====
+        private void HandleWASDMovement(float deltaTime)
+        {
             Vector3 movement = Vector3.Zero;
             
-            // Berechne Kamera-Richtungsvektoren
+            // Berechne Bewegungsrichtungen (relativ zur Kamera-Blickrichtung)
             Vector3 forward = GetForwardVector();
             Vector3 right = GetRightVector();
             
+            // Input sammeln
             if (Raylib.IsKeyDown(KeyboardKey.W))
                 movement += forward;
             if (Raylib.IsKeyDown(KeyboardKey.S))
@@ -128,216 +178,96 @@ namespace BeyondIndustry
             if (Raylib.IsKeyDown(KeyboardKey.A))
                 movement -= right;
             
-            // Normalisieren und Speed anwenden
+            // Wenn Bewegung vorhanden
             if (movement.Length() > 0)
             {
                 movement = Vector3.Normalize(movement);
                 
-                float speed = MoveSpeed;
-                if (Raylib.IsKeyDown(KeyboardKey.LeftShift))
-                    speed *= FastMoveMultiplier;
-                if (Raylib.IsKeyDown(KeyboardKey.LeftControl))
-                    speed *= SlowMoveMultiplier;
+                // Geschwindigkeit mit Modifiern
+                float speed = WalkSpeed;
                 
+                if (Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift))
+                    speed = WalkSpeedFast;
+                else if (Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl))
+                    speed = WalkSpeedSlow;
+                
+                // Bewege Target (Kamera folgt)
                 targetPosition += movement * speed * deltaTime;
             }
+        }
+        
+        // ===== CALCULATE CAMERA POSITION =====
+        private Vector3 CalculateCameraPosition()
+        {
+            // Konvertiere Winkel zu Radiant
+            float hRad = horizontalAngle * (MathF.PI / 180.0f);
+            float vRad = verticalAngle * (MathF.PI / 180.0f);
             
-            // ===== RECHTE MAUSTASTE - ROTATION (HORIZONTAL) =====
-            if (Raylib.IsMouseButtonDown(MouseButton.Right))
-            {
-                //Vector2 mouseDelta = Raylib.GetMouseDelta();
-                //horizontalAngle -= mouseDelta.X * MouseRotationSpeed;
-            }
+            // Sphärische Koordinaten zu Kartesisch
+            float x = targetPosition.X + distance * MathF.Cos(vRad) * MathF.Sin(hRad);
+            float y = targetPosition.Y + distance * MathF.Sin(vRad);
+            float z = targetPosition.Z + distance * MathF.Cos(vRad) * MathF.Cos(hRad);
             
-            // ===== MITTLERE MAUSTASTE - PANNING & TILT =====
-            if (Raylib.IsMouseButtonDown(MouseButton.Middle))
-            {
-                Vector2 mouseDelta = Raylib.GetMouseDelta();
-                
-                // Horizontal: Pan (Target bewegen relativ zur Kamera)
-                if (MathF.Abs(mouseDelta.X) > MathF.Abs(mouseDelta.Y))
-                {
-                    horizontalAngle -= mouseDelta.X * MouseRotationSpeed;
-                }
-                // Vertikal: Tilt (Kamera neigen)
-                else
-                {
-                    verticalAngle += mouseDelta.Y * MouseTiltSpeed;
-                    verticalAngle = Math.Clamp(verticalAngle, MinVerticalAngle, MaxVerticalAngle);
-                }
-                
-            }
-            
-            // ===== MAUSRAD - ZOOM =====
-            float wheel = Raylib.GetMouseWheelMove();
-            if (wheel != 0)
-            {
-                distance -= wheel * ZoomSpeed;
-                distance = Math.Clamp(distance, MinZoom, MaxZoom);
-            }
-            
-            // Apply Bounds
-            if (UseBounds)
-            {
-                targetPosition.X = Math.Clamp(targetPosition.X, MinX, MaxX);
-                targetPosition.Z = Math.Clamp(targetPosition.Z, MinZ, MaxZ);
-            }
-            
-            // Update Camera
+            return new Vector3(x, y, z);
+        }
+        
+        // ===== UPDATE CAMERA =====
+        private void UpdateCamera()
+        {
             Camera.Target = targetPosition;
             Camera.Position = CalculateCameraPosition();
         }
         
-        // ===== ORBIT MODE UPDATE =====
-        private void UpdateOrbitMode(float deltaTime)
-        {
-            // WASD für Orbit
-            if (Raylib.IsKeyDown(KeyboardKey.A))
-                horizontalAngle += 100.0f * deltaTime;
-            if (Raylib.IsKeyDown(KeyboardKey.D))
-                horizontalAngle -= 100.0f * deltaTime;
-            if (Raylib.IsKeyDown(KeyboardKey.W))
-            {
-                verticalAngle -= 50.0f * deltaTime;
-                verticalAngle = Math.Clamp(verticalAngle, MinVerticalAngle, MaxVerticalAngle);
-            }
-            if (Raylib.IsKeyDown(KeyboardKey.S))
-            {
-                verticalAngle += 50.0f * deltaTime;
-                verticalAngle = Math.Clamp(verticalAngle, MinVerticalAngle, MaxVerticalAngle);
-            }
-            
-            // Rechte Maustaste - Orbit Rotation
-            if (Raylib.IsMouseButtonDown(MouseButton.Right))
-            {
-                Vector2 mouseDelta = Raylib.GetMouseDelta();
-                horizontalAngle -= mouseDelta.X * MouseRotationSpeed;
-                verticalAngle += mouseDelta.Y * MouseRotationSpeed;
-                verticalAngle = Math.Clamp(verticalAngle, MinVerticalAngle, MaxVerticalAngle);
-            }
-            
-            // Mittlere Maustaste - Target bewegen
-            if (Raylib.IsMouseButtonDown(MouseButton.Middle))
-            {
-                Vector2 mouseDelta = Raylib.GetMouseDelta();
-                Vector3 right = GetRightVector();
-                Vector3 up = new Vector3(0, 1, 0);
-                
-                float panSpeed = orbitDistance * 0.01f;
-                orbitTarget -= right * mouseDelta.X * panSpeed;
-                orbitTarget -= up * mouseDelta.Y * panSpeed;
-            }
-            
-            // Zoom
-            float wheel = Raylib.GetMouseWheelMove();
-            if (wheel != 0)
-            {
-                orbitDistance -= wheel * ZoomSpeed;
-                orbitDistance = Math.Clamp(orbitDistance, 2.0f, 50.0f);
-            }
-            
-            // Update Camera
-            Camera.Target = orbitTarget;
-            Camera.Position = CalculateOrbitPosition();
-        }
-        
-        // ===== BERECHNE KAMERA-POSITION (FREE MODE) =====
-        private Vector3 CalculateCameraPosition()
-        {
-            float hRad = horizontalAngle * (MathF.PI / 180.0f);
-            float vRad = verticalAngle * (MathF.PI / 180.0f);
-            
-            float x = targetPosition.X - distance * MathF.Cos(vRad) * MathF.Sin(hRad);
-            float y = targetPosition.Y + distance * MathF.Sin(vRad);
-            float z = targetPosition.Z - distance * MathF.Cos(vRad) * MathF.Cos(hRad);
-            
-            return new Vector3(x, y, z);
-        }
-        
-        // ===== BERECHNE ORBIT POSITION =====
-        private Vector3 CalculateOrbitPosition()
-        {
-            float hRad = horizontalAngle * (MathF.PI / 180.0f);
-            float vRad = verticalAngle * (MathF.PI / 180.0f);
-            
-            float x = orbitTarget.X - orbitDistance * MathF.Cos(vRad) * MathF.Sin(hRad);
-            float y = orbitTarget.Y + orbitDistance * MathF.Sin(vRad);
-            float z = orbitTarget.Z - orbitDistance * MathF.Cos(vRad) * MathF.Cos(hRad);
-            
-            return new Vector3(x, y, z);
-        }
-        
-        // ===== HELPER: GET FORWARD VECTOR (RELATIV ZUR KAMERA) =====
+        // ===== HELPER: GET FORWARD VECTOR =====
         private Vector3 GetForwardVector()
         {
-            // Forward ist die Richtung von Kamera zu Target (projiziert auf XZ-Ebene)
+            // Forward auf XZ-Ebene projiziert (keine Y-Komponente)
             Vector3 forward = Vector3.Normalize(Camera.Target - Camera.Position);
-            forward.Y = 0;  // Nur horizontal
+            forward.Y = 0;
             
             if (forward.Length() > 0)
                 return Vector3.Normalize(forward);
             
+            // Fallback
             return new Vector3(0, 0, -1);
         }
         
-        // ===== HELPER: GET RIGHT VECTOR (RELATIV ZUR KAMERA) =====
+        // ===== HELPER: GET RIGHT VECTOR =====
         private Vector3 GetRightVector()
         {
             Vector3 forward = GetForwardVector();
-            Vector3 up = new Vector3(0, 1, 0);
-            return Vector3.Normalize(Vector3.Cross(forward, up));
+            Vector3 worldUp = new Vector3(0, 1, 0);
+            return Vector3.Normalize(Vector3.Cross(forward, worldUp));
         }
         
-        // ===== ENTER ORBIT MODE =====
-        public void EnterOrbitMode(Vector3 target)
+        // ===== HELPER: GET UP VECTOR =====
+        private Vector3 GetUpVector()
         {
-            Mode = CameraMode.Orbit;
-            orbitTarget = target;
-            orbitDistance = Vector3.Distance(Camera.Position, target);
-            orbitDistance = Math.Clamp(orbitDistance, 2.0f, 50.0f);
-            Console.WriteLine($"[Camera] Entered Orbit Mode around {orbitTarget}");
-        }
-        
-        // ===== EXIT ORBIT MODE =====
-        public void ExitOrbitMode()
-        {
-            Mode = CameraMode.Free;
-            targetPosition = orbitTarget;
-            distance = orbitDistance;
-            Console.WriteLine("[Camera] Exited Orbit Mode");
+            // Für Panning: Immer World-Up (Y-Achse)
+            return new Vector3(0, 1, 0);
         }
         
         // ===== FOCUS ON POSITION =====
-        public void FocusOnPosition(Vector3 position, bool instant = false, bool enterOrbit = false)
+        public void FocusOnPosition(Vector3 position, bool instant = false)
         {
-            if (enterOrbit)
+            targetPosition = position;
+            
+            if (instant)
             {
-                EnterOrbitMode(position);
-            }
-            else
-            {
-                targetPosition = position;
-                
-                if (instant)
-                {
-                    Camera.Target = targetPosition;
-                    Camera.Position = CalculateCameraPosition();
-                }
+                UpdateCamera();
             }
         }
         
         // ===== RESET CAMERA =====
         public void ResetCamera()
         {
-            if (Mode == CameraMode.Orbit)
-                ExitOrbitMode();
-            
             targetPosition = Vector3.Zero;
             horizontalAngle = 45.0f;
             verticalAngle = 45.0f;
             distance = 30.0f;
-            Camera.Target = targetPosition;
-            Camera.Position = CalculateCameraPosition();
+            UpdateCamera();
+            
+            Console.WriteLine("[Camera] Reset to default position");
         }
         
         // ===== SET BOUNDS =====
@@ -349,21 +279,45 @@ namespace BeyondIndustry
             MaxZ = maxZ;
         }
         
+        // ===== QUICK VIEWS (wie Numpad in Blender) =====
+        
+        public void SetTopView()
+        {
+            verticalAngle = 89.0f;
+            horizontalAngle = 0.0f;
+            UpdateCamera();
+            Console.WriteLine("[Camera] Top View");
+        }
+        
+        public void SetFrontView()
+        {
+            verticalAngle = 45.0f;
+            horizontalAngle = 0.0f;
+            UpdateCamera();
+            Console.WriteLine("[Camera] Front View");
+        }
+        
+        public void SetRightView()
+        {
+            verticalAngle = 45.0f;
+            horizontalAngle = 90.0f;
+            UpdateCamera();
+            Console.WriteLine("[Camera] Right View");
+        }
+        
+        public void SetIsometricView()
+        {
+            verticalAngle = 35.264f;  // Isometrischer Winkel
+            horizontalAngle = 45.0f;
+            UpdateCamera();
+            Console.WriteLine("[Camera] Isometric View");
+        }
+        
         // ===== DEBUG INFO =====
         public string GetDebugInfo()
         {
-            string modeStr = Mode == CameraMode.Free ? "FREE" : "ORBIT";
-            
-            if (Mode == CameraMode.Free)
-            {
-                return $"Mode: {modeStr} | Pos: ({Camera.Target.X:F1}, {Camera.Target.Z:F1}) | " +
-                       $"Dist: {distance:F1} | H: {horizontalAngle:F0}° V: {verticalAngle:F0}°";
-            }
-            else
-            {
-                return $"Mode: {modeStr} | Target: ({orbitTarget.X:F1}, {orbitTarget.Y:F1}, {orbitTarget.Z:F1}) | " +
-                       $"Dist: {orbitDistance:F1} | H: {horizontalAngle:F0}° V: {verticalAngle:F0}°";
-            }
+            return $"Target: ({targetPosition.X:F1}, {targetPosition.Y:F1}, {targetPosition.Z:F1}) | " +
+                   $"Dist: {distance:F1} | H: {horizontalAngle:F0}° V: {verticalAngle:F0}°";
         }
     }
 }
